@@ -50,6 +50,9 @@ app = FastAPI(
     version="1.1.0",
 )
 
+if os.path.exists("assets"):
+    app.mount("/assets", StaticFiles(directory="assets"), name="assets")
+
 # CORS aberto para desenvolvimento. Sem credenciais, porque a combinação
 # "*" + credenciais não é válida no navegador.
 app.add_middleware(
