@@ -7,6 +7,7 @@ ou, de dentro desta pasta:
 """
 from __future__ import annotations
 
+import html
 import json
 import logging
 import os
@@ -112,13 +113,14 @@ def _get(
     params: dict[str, Any] | None,
     headers: dict[str, str] | None,
     user_agent: str,
+    timeout: tuple[float, float] = TIMEOUT,
 ) -> requests.Response:
     try:
         return requests.get(
             url,
             params=params,
             headers={"Accept": "application/json", **(headers or {}), "User-Agent": user_agent},
-            timeout=TIMEOUT,
+            timeout=timeout,
         )
     except requests.RequestException as exc:
         raise MuseumError(f"falha de rede ({exc.__class__.__name__})") from exc
@@ -129,13 +131,14 @@ def fetch_json(
     *,
     params: dict[str, Any] | None = None,
     headers: dict[str, str] | None = None,
+    timeout: tuple[float, float] = TIMEOUT,
 ) -> Any:
     """GET com tratamento de erro. Levanta MuseumError com um motivo claro."""
-    res = _get(url, params, headers, APP_USER_AGENT)
+    res = _get(url, params, headers, APP_USER_AGENT, timeout)
 
     if res.status_code in RETRY_WITH_BROWSER_STATUSES:
         log.info("HTTP %s em %s; tentando de novo com User-Agent de navegador", res.status_code, url)
-        res = _get(url, params, headers, BROWSER_USER_AGENT)
+        res = _get(url, params, headers, BROWSER_USER_AGENT, timeout)
 
     if res.status_code != 200:
         # O começo do corpo costuma dizer quem bloqueou (firewall, aviso da API...).
@@ -706,6 +709,267 @@ def search_whitney(q: str, limit: int) -> list[dict[str, Any]]:
     return artworks[:limit]
 
 
+# ---------------------------------------------------------------------------
+# J. Paul Getty Museum (Linked Art + SPARQL, sem chave)
+# Os dados são CC0, mas as IMAGENS nem sempre: só as do programa Open Content são.
+# Cada imagem traz o aviso de direitos no próprio registro, e só ficamos com as CC0.
+# ---------------------------------------------------------------------------
+GETTY_SPARQL = "https://data.getty.edu/museum/collection/sparql"
+GETTY_OBJECT = "https://data.getty.edu/museum/collection/object"
+GETTY_IIIF = "https://media.getty.edu/iiif/image"
+GETTY_NAME = "J. Paul Getty Museum"
+# Texto de crédito preferido pelo Getty (pedido, não obrigação, mas custa pouco).
+GETTY_CREDIT = "Courtesy of the J. Paul Getty Museum, Los Angeles"
+GETTY_OVERFETCH = 3
+# A busca de texto no SPARQL varre o acervo todo e pode levar vários segundos.
+GETTY_SPARQL_TIMEOUT = (3.05, 30)
+GETTY_OBJECT_URI = re.compile(r"/museum/collection/object/([0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12})$")
+GETTY_IMAGE_UUID = re.compile(r"media\.getty\.edu/iiif/image/([0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12})")
+GETTY_PAGE = re.compile(r"https://www\.getty\.edu/art/collection/object/[A-Za-z0-9]+")
+
+
+def _getty_sparql(tokens: list[str], count: int) -> str:
+    # Os tokens já vêm só com letras/números/espaço/'/-, então não quebram a string SPARQL.
+    # Dois ramos (título OU artista) são bem mais leves que juntar tudo num texto só.
+    # Contrapartida: todos os termos precisam estar no título ou todos no nome do artista.
+    cond = " && ".join(f'CONTAINS(LCASE(STR(?text)), "{token}")' for token in tokens)
+    return f"""
+PREFIX crm: <http://www.cidoc-crm.org/cidoc-crm/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+SELECT DISTINCT ?obj WHERE {{
+  {{ ?obj rdfs:label ?text . FILTER({cond}) }}
+  UNION
+  {{ ?obj crm:P108i_was_produced_by/crm:P14_carried_out_by/rdfs:label ?text . FILTER({cond}) }}
+  ?obj a crm:E22_Human-Made_Object ;
+       crm:P138i_has_representation ?rep .
+}}
+LIMIT {count}
+"""
+
+
+@lru_cache(maxsize=64)
+def _getty_find_ids(query: str) -> tuple[str, ...]:
+    """Roda o SPARQL (lento) e guarda o resultado. Falhas não ficam em cache."""
+    data = fetch_json(
+        GETTY_SPARQL,
+        params={"query": query},
+        headers={"Accept": "application/sparql-results+json"},
+        timeout=GETTY_SPARQL_TIMEOUT,
+    )
+    bindings = (data.get("results") or {}).get("bindings") or []
+    ids = []
+    for row in bindings:
+        match = GETTY_OBJECT_URI.search((row.get("obj") or {}).get("value", ""))
+        if match:
+            ids.append(match.group(1))
+    return tuple(ids)
+
+
+def _getty_artists(production: Any) -> str | None:
+    """Nomes de quem fez a obra. Com vários autores, ficam em 'part' dentro da produção."""
+    names: list[str] = []
+
+    def collect(node: Any) -> None:
+        if not isinstance(node, dict):
+            return
+        for person in node.get("carried_out_by") or []:
+            if isinstance(person, dict) and person.get("_label"):
+                names.append(str(person["_label"]))
+        for part in node.get("part") or []:
+            collect(part)
+
+    collect(production)
+    return ", ".join(list(dict.fromkeys(names))[:3]) or None
+
+
+def _getty_year(production: Any) -> str | None:
+    timespan = production.get("timespan") if isinstance(production, dict) else None
+    if not isinstance(timespan, dict):
+        return None
+    for ident in timespan.get("identified_by") or []:
+        if isinstance(ident, dict) and ident.get("content"):
+            return str(ident["content"])
+    return timespan.get("_label") or None
+
+
+def _getty_image(representations: Any) -> str | None:
+    """Primeira imagem CC0. O aviso de direitos fica no mesmo bloco da imagem."""
+    for rep in representations if isinstance(representations, list) else []:
+        if not isinstance(rep, dict):
+            continue
+        blob = json.dumps(rep)
+        if "publicdomain/zero/1.0" not in blob:
+            continue  # sob copyright ou outra licença: não usamos
+        match = GETTY_IMAGE_UUID.search(blob)
+        if match:
+            return f"{GETTY_IIIF}/{match.group(1)}/full/600,/0/default.jpg"
+    return None
+
+
+def _getty_object(uuid: str) -> dict[str, Any] | None:
+    try:
+        d = fetch_json(
+            f"{GETTY_OBJECT}/{uuid}",
+            headers={"Accept": "application/ld+json, application/json;q=0.9"},
+        )
+    except MuseumError as exc:
+        log.warning("[getty] objeto %s ignorado: %s", uuid, exc)
+        return None
+    if not isinstance(d, dict):
+        return None
+
+    image = _getty_image(d.get("representation"))
+    if not image:
+        return None
+    production = d.get("produced_by")
+    page = GETTY_PAGE.search(json.dumps(d.get("subject_of") or []))
+    return make_artwork(
+        prefix="getty",
+        raw_id=uuid,
+        title=d.get("_label"),
+        artist=_getty_artists(production),
+        image=image,
+        year=_getty_year(production),
+        museum=GETTY_NAME,
+        url=page.group(0) if page else f"{GETTY_OBJECT}/{uuid}",
+        credit=GETTY_CREDIT,
+    )
+
+
+def search_getty(q: str, limit: int) -> list[dict[str, Any]]:
+    # A API não tem busca por texto: usamos o SPARQL para achar os IDs e depois
+    # lemos cada registro (como no Met). O termo vale para título e artista.
+    clean = " ".join(re.sub(r"[^\w\s'-]", " ", q).split())
+    if not clean:
+        return []
+    tokens = clean.lower().split()[:6]
+    candidates = min(limit * GETTY_OVERFETCH, 18)
+    uuids = list(_getty_find_ids(_getty_sparql(tokens, candidates)))
+    if not uuids:
+        return []
+    with ThreadPoolExecutor(max_workers=min(len(uuids), 6)) as pool:
+        details = list(pool.map(_getty_object, uuids))
+    with_image = [art for art in details if art]
+    log.info("[getty] %d candidatas, %d com imagem CC0", len(uuids), len(with_image))
+    return with_image[:limit]
+
+
+GUGGENHEIM_API = "https://www.guggenheim.org/wp-json/wp/v2"
+GUGGENHEIM_NAME = "Solomon R. Guggenheim Museum"
+GUGGENHEIM_CREDIT = "Solomon R. Guggenheim Foundation, New York"
+GUGGENHEIM_OVERFETCH = 3
+GUGGENHEIM_IMAGE_SIZES = ("medium_large", "large", "guggenheim-870", "full")
+GUGGENHEIM_TAGS = re.compile(r"<[^>]+>")
+
+
+def _guggenheim_artist_ids(q: str) -> list[int]:
+    """IDs das obras dos artistas cujo nome bate com o termo (busca mais precisa por artista)."""
+    terms = fetch_json(
+        f"{GUGGENHEIM_API}/artist",
+        params={"search": q, "per_page": 3, "orderby": "count", "order": "desc", "_fields": "id,count"},
+    )
+    term_ids = [str(t["id"]) for t in terms or [] if isinstance(t, dict) and t.get("count")]
+    if not term_ids:
+        return []
+    works = fetch_json(
+        f"{GUGGENHEIM_API}/artwork",
+        params={"artist": ",".join(term_ids), "per_page": 30, "_fields": "id"},
+    )
+    return [w["id"] for w in works or [] if isinstance(w, dict) and w.get("id")]
+
+
+def _guggenheim_search_ids(q: str, count: int) -> list[int]:
+    """Busca geral do site. O filtro subtype só dá prioridade às obras, então filtramos de novo."""
+    data = fetch_json(
+        f"{GUGGENHEIM_API}/search",
+        params={"search": q, "subtype": "artwork", "per_page": count},
+    )
+    return [
+        item["id"]
+        for item in data or []
+        if isinstance(item, dict) and item.get("subtype") == "artwork" and item.get("id")
+    ]
+
+
+def _guggenheim_year(caption: str | None) -> str | None:
+    """'<p>Vasily Kandinsky, <i>Singer</i>, 1903</p>' -> '1903'."""
+    if not caption or "</i>" not in caption:
+        return None
+    tail = html.unescape(GUGGENHEIM_TAGS.sub("", caption.rsplit("</i>", 1)[1])).strip(" ,.\n")
+    return None if not tail or tail.lower() in {"n.d", "n.d."} else tail
+
+
+def _guggenheim_artwork(item: dict[str, Any]) -> dict[str, Any] | None:
+    embedded = item.get("_embedded") or {}
+    media_list = embedded.get("wp:featuredmedia") or []
+    media = media_list[0] if media_list and isinstance(media_list[0], dict) else {}
+    sizes = (media.get("media_details") or {}).get("sizes") or {}
+    image = next(
+        (sizes[s]["source_url"] for s in GUGGENHEIM_IMAGE_SIZES if isinstance(sizes.get(s), dict) and sizes[s].get("source_url")),
+        media.get("source_url"),
+    )
+    if not image:
+        return None
+
+    terms = [t for group in embedded.get("wp:term") or [] for t in group or [] if isinstance(t, dict)]
+    artists = [html.unescape(t["name"]) for t in terms if t.get("taxonomy") == "artist" and t.get("name")]
+    sites = [html.unescape(t["name"]) for t in terms if t.get("taxonomy") == "site" and t.get("name")]
+    caption = (media.get("caption") or {}).get("rendered")
+
+    return make_artwork(
+        prefix="guggenheim",
+        raw_id=item.get("id"),
+        title=html.unescape((item.get("title") or {}).get("rendered") or ""),
+        artist=", ".join(artists[:3]) or None,
+        image=image,
+        year=_guggenheim_year(caption),
+        museum=sites[0] if sites else GUGGENHEIM_NAME,
+        url=item.get("link"),
+        credit=GUGGENHEIM_CREDIT,
+    )
+
+
+def search_guggenheim(q: str, limit: int) -> list[dict[str, Any]]:
+    """Acervo do Guggenheim via API pública do site (WordPress), sem chave.
+
+    A antiga api.guggenheim.org exigia chave e saiu do ar. As imagens podem ter
+    direitos do artista, então cada obra leva crédito e link para a ficha oficial.
+    """
+    candidates = min(limit * GUGGENHEIM_OVERFETCH, 30)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        by_artist = pool.submit(_guggenheim_artist_ids, q)
+        by_search = pool.submit(_guggenheim_search_ids, q, candidates)
+        try:
+            artist_ids = by_artist.result()
+        except MuseumError as exc:
+            log.warning("[guggenheim] busca por artista falhou: %s", exc)
+            artist_ids = []
+        try:
+            search_ids = by_search.result()
+        except MuseumError as exc:
+            if not artist_ids:
+                raise
+            log.warning("[guggenheim] busca geral falhou: %s", exc)
+            search_ids = []
+
+    ids = list(dict.fromkeys(artist_ids[:candidates] + search_ids))[:candidates]
+    if not ids:
+        return []
+    items = fetch_json(
+        f"{GUGGENHEIM_API}/artwork",
+        params={
+            "include": ",".join(str(i) for i in ids),
+            "orderby": "include",
+            "per_page": len(ids),
+            "_embed": "wp:featuredmedia,wp:term",
+            "_fields": "id,link,title,_links,_embedded",
+        },
+    )
+    artworks = [art for art in (_guggenheim_artwork(i) for i in items or [] if isinstance(i, dict)) if art]
+    log.info("[guggenheim] %d candidatas, %d com imagem", len(ids), len(artworks))
+    return artworks[:limit]
+
+
 # Para adicionar um museu: escreva uma função search_xxx(q, limit) e registre aqui
 # (e acrescente a opção no <select> do index.html).
 MUSEUMS: dict[str, Callable[[str, int], list[dict[str, Any]]]] = {
@@ -717,6 +981,8 @@ MUSEUMS: dict[str, Callable[[str, int], list[dict[str, Any]]]] = {
     "louvre": search_louvre,
     "smithsonian": search_smithsonian,
     "whitney": search_whitney,
+    "getty": search_getty,
+    "guggenheim": search_guggenheim,
 }
 
 
@@ -739,7 +1005,7 @@ def _run_museum(key: str, q: str, limit: int) -> dict[str, Any]:
 @app.get("/search")
 def search_artworks(
     q: str = Query(..., max_length=100, description="Termo (ex: monet, van gogh)"),
-    museum: Literal["all", "met", "artic", "cleveland", "smk", "vam", "louvre", "smithsonian", "whitney"] = Query(
+    museum: Literal["all", "met", "artic", "cleveland", "smk", "vam", "louvre", "smithsonian", "whitney", "getty", "guggenheim"] = Query(
         "all", description="Museu específico ou 'all'"
     ),
     limit_per_museum: int = Query(2, ge=1, le=12, description="Obras por museu"),
