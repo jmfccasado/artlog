@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>artlog</title>
+    <link rel="stylesheet" href="https://use.typekit.net/bml1wrq.css">
+    <link rel="stylesheet" href="/style.css">
+    <style>
+        /* Ajustes desta página. Usam as variáveis do style.css. */
+        .logo-text {
+            font-size: 2rem;
+            letter-spacing: -0.04em;
+            color: var(--text-main);
+        }
+        .logo-art { font-weight: 700; }
+        .logo-log { font-weight: 300; }
+
+        .dot[aria-pressed="true"] {
+            outline: 2px solid var(--text-main);
+            outline-offset: 3px;
+        }
+        .dot:focus-visible,
+        .search-section button:focus-visible {
+            outline: 3px solid var(--brand-accent);
+            outline-offset: 2px;
+        }
+        .search-section:focus-within {
+            outline: 3px solid var(--brand-accent);
+            outline-offset: 3px;
+        }
+
+        .search-section button:hover,
+        .search-section button:focus-visible {
+            background-color: var(--brand-accent);
+            color: var(--on-accent, #ffffff);
+        }
+        .search-section button:disabled {
+            opacity: 0.6;
+            cursor: progress;
+        }
+
+        .status {
+            margin: 2rem 0 0.5rem;
+            font-weight: 700;
+            min-height: 1.5em;
+        }
+        .museum-note {
+            margin: 0 0 2rem;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+        .museum-note[hidden] { display: none; }
+
+        /* Texto pequeno em amarelo sobre branco fica ilegível (cerca de 2:1).
+           A cor de destaque vai num sublinhado, e o texto fica escuro. */
+        .card-meta { color: var(--text-main); }
+        .card-meta span:last-child {
+            text-align: right;
+            box-shadow: inset 0 -3px 0 var(--brand-accent);
+        }
+
+        @media (max-width: 640px) {
+            .navbar { padding: 1.25rem; }
+            .container { padding: 0 1.25rem; margin: 2rem auto; }
+            .search-section { flex-direction: column; }
+            .search-section input { padding: 1rem 1.25rem; }
+            .search-section select {
+                padding: 1rem 1.25rem;
+                border-left: none;
+                border-top: 2px solid var(--text-main);
+            }
+            .search-section button { padding: 1rem; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .card, .dot { transition: none; }
+            .card:hover, .dot:hover { transform: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <header class="navbar">
+        <a href="/" class="logo-container" aria-label="artlog, página inicial">
+            <span class="logo-text"><span class="logo-art">art</span><span class="logo-log">log</span></span>
+        </a>
+
+        <nav class="view-switch" aria-label="Seções">
+            <button type="button" id="tab-search" aria-pressed="true">Explorar</button>
+            <button type="button" id="tab-collection" aria-pressed="false">Minha coleção <span id="collection-count">0</span></button>
+        </nav>
+
+        <div class="accent-selector" role="group" aria-label="Cor de destaque">
+            <button type="button" class="dot dot-red" data-accent="red" aria-label="Vermelho" aria-pressed="true"></button>
+            <button type="button" class="dot dot-yellow" data-accent="yellow" aria-label="Amarelo" aria-pressed="false"></button>
+            <button type="button" class="dot dot-blue" data-accent="blue" aria-label="Azul" aria-pressed="false"></button>
+        </div>
+    </header>
+
+    <main class="container">
+        <form id="search-form" class="search-section" role="search">
+            <input type="search" id="query-input" name="q" maxlength="100" autocomplete="off"
+                   placeholder="Pesquisar (ex: Monet, Van Gogh)..." aria-label="Pesquisar artista ou obra">
+            <select id="museum-input" name="museum" aria-label="Museu">
+                <option value="all">Todos os museus</option>
+                <option value="met">The Met</option>
+                <option value="artic">Art Institute of Chicago</option>
+                <option value="cleveland">Cleveland Museum of Art</option>
+                <option value="smk">SMK (Dinamarca)</option>
+                <option value="vam">Victoria and Albert Museum</option>
+                <option value="louvre">Musée du Louvre</option>
+                <option value="smithsonian">Smithsonian (museus de arte)</option>
+                <option value="whitney">Whitney Museum of American Art</option>
+            </select>
+            <button type="submit" id="btn-search">Pesquisar</button>
+            <button type="button" id="btn-random">Surpreenda-me</button>
+        </form>
+
+        <div id="status" class="status" role="status" aria-live="polite">
+            Pesquise por um artista ou obra. Os acervos usam termos em inglês (ex: Monet, sunflowers).
+        </div>
+        <p id="museum-note" class="museum-note" hidden></p>
+        <div id="collection-tools" class="collection-tools" hidden>
+            <button type="button" id="export-json">Exportar JSON</button>
+            <button type="button" id="export-csv">Exportar CSV</button>
+            <button type="button" id="import-json">Importar JSON</button>
+            <input type="file" id="import-file" accept="application/json,.json" hidden>
+        </div>
+        <section id="grid" class="artworks-grid" aria-label="Resultados"></section>
+        <button type="button" id="btn-more" class="more" hidden>Carregar mais</button>
+    </main>
+
+    <dialog id="detail" class="detail" aria-labelledby="detail-title">
+        <button type="button" id="detail-close" class="detail-close" aria-label="Fechar">×</button>
+        <img id="detail-img" alt="">
+        <div class="detail-body">
+            <h2 id="detail-title"></h2>
+            <p id="detail-artist"></p>
+            <p id="detail-meta" class="detail-meta"></p>
+            <p id="detail-credit" class="card-credit"></p>
+            <a id="detail-link" class="card-link" target="_blank" rel="noopener noreferrer" hidden>Ver no site do museu</a>
+            <div class="detail-log">
+                <button type="button" id="detail-save"></button>
+                <label for="detail-seen">Visto em</label>
+                <input type="date" id="detail-seen">
+                <label for="detail-note">Notas</label>
+                <textarea id="detail-note" rows="4" maxlength="2000"></textarea>
+            </div>
+        </div>
+    </dialog>
+
+    <script>
+    (() => {
+        "use strict";
+
+        const REQUEST_TIMEOUT_MS = 30000;
+        const LIMIT_PER_MUSEUM = 3;
+
+        // Nomes exibidos para os museus que a API informa em "museums".
+        const MUSEUM_NAMES = {
+            met: "The Met",
+            artic: "Art Institute of Chicago",
+            cleveland: "Cleveland Museum of Art",
+            smk: "SMK (Dinamarca)",
+            vam: "Victoria and Albert Museum",
+            louvre: "Musée du Louvre",
+            smithsonian: "Smithsonian",
+            whitney: "Whitney Museum",
+        };
+
+        // Cores de destaque: variável CSS e cor do texto legível por cima dela.
+        const ACCENTS = {
+            red:    { cssVar: "--artlog-red",    onAccent: "#ffffff" },
+            yellow: { cssVar: "--artlog-yellow", onAccent: "#14121f" },
+            blue:   { cssVar: "--artlog-blue",   onAccent: "#ffffff" },
+        };
+
+        // Imagem local: não depende de nenhum serviço externo, então nunca falha.
+        const PLACEHOLDER = "data:image/svg+xml;utf8," + encodeURIComponent(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="500" viewBox="0 0 400 500">' +
+            '<rect width="400" height="500" fill="#f9f9f9"/>' +
+            '<text x="200" y="256" font-family="Helvetica, Arial, sans-serif" font-size="20" ' +
+            'text-anchor="middle" fill="#6e6b7b">Imagem indisponível</text></svg>'
+        );
+
+        const form = document.getElementById("search-form");
+        const queryInput = document.getElementById("query-input");
+        const museumSelect = document.getElementById("museum-input");
+        const searchButton = document.getElementById("btn-search");
+        const statusBox = document.getElementById("status");
+        const museumNote = document.getElementById("museum-note");
+        const grid = document.getElementById("grid");
+        const dots = document.querySelectorAll(".dot[data-accent]");
+
+        // ------------------------------------------------------------------
+        // Cor de destaque
+        // ------------------------------------------------------------------
+        function setAccent(name, save = true) {
+            const accent = ACCENTS[name];
+            if (!accent) return;
+            const root = document.documentElement;
+            root.style.setProperty("--brand-accent", `var(${accent.cssVar})`);
+            root.style.setProperty("--on-accent", accent.onAccent);
+            dots.forEach((dot) => dot.setAttribute("aria-pressed", String(dot.dataset.accent === name)));
+            if (save) {
+                try { localStorage.setItem("artlog-accent", name); } catch (_) { /* modo privado */ }
+            }
+        }
+
+        dots.forEach((dot) => dot.addEventListener("click", () => setAccent(dot.dataset.accent)));
+
+        let savedAccent = null;
+        try { savedAccent = localStorage.getItem("artlog-accent"); } catch (_) { /* ignora */ }
+        setAccent(ACCENTS[savedAccent] ? savedAccent : "red", false);
+
+        // ------------------------------------------------------------------
+        // Interface
+        // ------------------------------------------------------------------
+        function showStatus(text) {
+            statusBox.textContent = text;
+        }
+
+        function showMuseumNote(text) {
+            museumNote.textContent = text || "";
+            museumNote.hidden = !text;
+        }
+
+        function setLoading(isLoading) {
+            searchButton.disabled = isLoading;
+            grid.setAttribute("aria-busy", String(isLoading));
+        }
+
+        // Os cards são montados com DOM e textContent: títulos com aspas ou "<"
+        // não quebram mais o HTML.
+        function createCard(art) {
+            const card = document.createElement("article");
+            card.className = "card";
+
+            const wrapper = document.createElement("div");
+            wrapper.className = "card-image-wrapper";
+
+            const img = document.createElement("img");
+            img.alt = art.title || "Obra sem título";
+            img.loading = "lazy";
+            img.referrerPolicy = "no-referrer";
+            // Uma única troca (once): se a imagem original falhar, entra o placeholder local.
+            img.addEventListener("error", () => {
+                console.warn("Imagem não carregou:", art.museum, art.image);
+                img.src = PLACEHOLDER;
+            }, { once: true });
+            img.src = art.image || PLACEHOLDER;
+            wrapper.appendChild(img);
+            wrapper.appendChild(createFavButton(art));
+            wrapper.addEventListener("click", () => openDetail(art));
+
+            const title = document.createElement("h3");
+            title.className = "card-title";
+            const titleButton = document.createElement("button");
+            titleButton.type = "button";
+            titleButton.className = "card-open";
+            titleButton.textContent = art.title || "Sem título";
+            titleButton.addEventListener("click", () => openDetail(art));
+            title.appendChild(titleButton);
+
+            const artist = document.createElement("p");
+            artist.className = "card-artist";
+            artist.textContent = art.artist || "Artista desconhecido";
+
+            const meta = document.createElement("div");
+            meta.className = "card-meta";
+            const year = document.createElement("span");
+            year.textContent = art.year || "";
+            const museum = document.createElement("span");
+            museum.textContent = art.museum || "";
+            meta.append(year, museum);
+
+            card.append(wrapper, title, artist, meta);
+
+            // Alguns museus (Louvre) exigem crédito da foto e link para a ficha da obra.
+            if (art.credit) {
+                const credit = document.createElement("p");
+                credit.className = "card-credit";
+                credit.textContent = art.credit;
+                card.append(credit);
+            }
+            if (typeof art.url === "string" && art.url.startsWith("https://")) {
+                const link = document.createElement("a");
+                link.className = "card-link";
+                link.href = art.url;
+                link.target = "_blank";
+                link.rel = "noopener noreferrer";
+                link.textContent = "Ver no site do museu";
+                card.append(link);
+            }
+            const saved = collection[art.id];
+            if (saved && saved.note) {
+                const note = document.createElement("p");
+                note.className = "card-note";
+                note.textContent = saved.note.length > 140 ? saved.note.slice(0, 140) + "…" : saved.note;
+                card.append(note);
+            }
+            return card;
+        }
+
+        function failedMuseumsText(museums) {
+            const failed = Object.entries(museums || {}).filter(([, info]) => info && info.error);
+            if (failed.length === 0) return "";
+            const list = failed
+                .map(([key, info]) => `${MUSEUM_NAMES[key] || key} (${info.error})`)
+                .join("; ");
+            return `Sem resposta de: ${list}.`;
+        }
+
+        // ------------------------------------------------------------------
+        // Coleção (salva no navegador)
+        // ------------------------------------------------------------------
+        const STORE_KEY = "artlog-collection";
+        const countEl = document.getElementById("collection-count");
+        let collection = {};
+        try { collection = JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch (_) { collection = {}; }
+        if (typeof collection !== "object" || Array.isArray(collection)) collection = {};
+
+        function persist() {
+            try { localStorage.setItem(STORE_KEY, JSON.stringify(collection)); }
+            catch (_) { showStatus("Não foi possível salvar neste navegador (armazenamento bloqueado ou cheio)."); }
+        }
+        function updateCount() { countEl.textContent = String(Object.keys(collection).length); }
+        function isSaved(id) { return Object.prototype.hasOwnProperty.call(collection, id); }
+
+        function paintFav(button, saved) {
+            button.setAttribute("aria-pressed", String(saved));
+            button.textContent = saved ? "♥" : "♡";
+            button.setAttribute("aria-label", saved ? "Remover da coleção" : "Salvar na coleção");
+        }
+        function syncFavButtons() {
+            document.querySelectorAll(".fav").forEach((b) => paintFav(b, isSaved(b.dataset.id)));
+        }
+        function toggleSaved(art) {
+            if (isSaved(art.id)) delete collection[art.id];
+            else collection[art.id] = { art, note: "", seen: "", savedAt: Date.now() };
+            persist();
+            updateCount();
+            if (view === "collection") renderCollection(); else syncFavButtons();
+        }
+        function createFavButton(art) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "fav";
+            button.dataset.id = art.id;
+            paintFav(button, isSaved(art.id));
+            button.addEventListener("click", (event) => {
+                event.stopPropagation();
+                toggleSaved(art);
+                if (openArt && openArt.id === art.id) refreshDetail();
+            });
+            return button;
+        }
+
+        // ------------------------------------------------------------------
+        // Detalhes da obra
+        // ------------------------------------------------------------------
+        const detail = document.getElementById("detail");
+        const detailNote = document.getElementById("detail-note");
+        const detailSeen = document.getElementById("detail-seen");
+        const detailSave = document.getElementById("detail-save");
+        const detailLink = document.getElementById("detail-link");
+        let openArt = null;
+
+        function refreshDetail() {
+            const saved = isSaved(openArt.id);
+            detailSave.textContent = saved ? "Remover da coleção" : "Salvar na coleção";
+            detailNote.disabled = detailSeen.disabled = !saved;
+            detailNote.placeholder = saved ? "Suas anotações sobre esta obra" : "Salve a obra para escrever notas";
+            detailNote.value = saved ? collection[openArt.id].note : "";
+            detailSeen.value = saved ? collection[openArt.id].seen : "";
+        }
+        function openDetail(art) {
+            openArt = art;
+            const img = document.getElementById("detail-img");
+            img.referrerPolicy = "no-referrer";
+            img.alt = art.title || "Obra sem título";
+            img.src = art.image || PLACEHOLDER;
+            document.getElementById("detail-title").textContent = art.title || "Sem título";
+            document.getElementById("detail-artist").textContent = art.artist || "";
+            document.getElementById("detail-meta").textContent = [art.year, art.museum].filter(Boolean).join(" · ");
+            document.getElementById("detail-credit").textContent = art.credit || "";
+            const ok = typeof art.url === "string" && art.url.startsWith("https://");
+            detailLink.hidden = !ok;
+            if (ok) detailLink.href = art.url;
+            refreshDetail();
+            detail.showModal();
+        }
+        detailSave.addEventListener("click", () => { toggleSaved(openArt); refreshDetail(); });
+        detailNote.addEventListener("input", () => {
+            if (isSaved(openArt.id)) { collection[openArt.id].note = detailNote.value; persist(); }
+        });
+        detailSeen.addEventListener("change", () => {
+            if (isSaved(openArt.id)) { collection[openArt.id].seen = detailSeen.value; persist(); }
+        });
+        document.getElementById("detail-close").addEventListener("click", () => detail.close());
+        detail.addEventListener("click", (event) => { if (event.target === detail) detail.close(); });
+        detail.addEventListener("close", () => {
+            openArt = null;
+            if (view === "collection") renderCollection();  // mostra a nota atualizada
+        });
+
+        // ------------------------------------------------------------------
+        // Exportar / importar
+        // ------------------------------------------------------------------
+        function download(name, text, type) {
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(new Blob([text], { type }));
+            link.download = name;
+            document.body.append(link);
+            link.click();
+            link.remove();
+            setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+        }
+        function csvCell(value) {
+            let text = String(value ?? "");
+            if (/^[=+\-@]/.test(text)) text = "'" + text;  // evita fórmulas no Excel
+            return `"${text.replace(/"/g, '""')}"`;
+        }
+        document.getElementById("export-json").addEventListener("click", () => {
+            download("artlog-colecao.json", JSON.stringify(collection, null, 2), "application/json");
+        });
+        document.getElementById("export-csv").addEventListener("click", () => {
+            const rows = [["id", "titulo", "artista", "ano", "museu", "link", "visto_em", "nota"]];
+            Object.values(collection).forEach(({ art, seen, note }) =>
+                rows.push([art.id, art.title, art.artist, art.year, art.museum, art.url, seen, note]));
+            download("artlog-colecao.csv", "\ufeff" + rows.map((r) => r.map(csvCell).join(",")).join("\n"), "text/csv");
+        });
+        const importFile = document.getElementById("import-file");
+        document.getElementById("import-json").addEventListener("click", () => importFile.click());
+        importFile.addEventListener("change", async () => {
+            const file = importFile.files[0];
+            importFile.value = "";
+            if (!file) return;
+            try {
+                const data = JSON.parse(await file.text());
+                if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("formato inválido");
+                const str = (v, max = 300) => (typeof v === "string" ? v.slice(0, max) : "");
+                let added = 0;
+                for (const entry of Object.values(data)) {
+                    const a = entry && entry.art;
+                    if (!a || typeof a.id !== "string" || isSaved(a.id)) continue;
+                    const image = str(a.image, 1000);
+                    if (!(image.startsWith("https://") || image.startsWith("/artic-image/"))) continue;
+                    collection[a.id] = {
+                        art: { id: a.id, title: str(a.title), artist: str(a.artist), year: str(a.year),
+                               museum: str(a.museum), image, url: str(a.url, 1000) || null, credit: str(a.credit) || null },
+                        note: str(entry.note, 2000),
+                        seen: /^\d{4}-\d{2}-\d{2}$/.test(entry.seen) ? entry.seen : "",
+                        savedAt: Number.isFinite(entry.savedAt) ? entry.savedAt : Date.now(),
+                    };
+                    added++;
+                }
+                persist(); updateCount(); renderCollection();
+                showStatus(`${added} ${added === 1 ? "obra importada" : "obras importadas"}.`);
+            } catch (err) {
+                showStatus(`Não foi possível importar o arquivo (${err.message}).`);
+            }
+        });
+
+        // ------------------------------------------------------------------
+        // Abas: Explorar / Minha coleção
+        // ------------------------------------------------------------------
+        const tabSearch = document.getElementById("tab-search");
+        const tabCollection = document.getElementById("tab-collection");
+        const toolsBox = document.getElementById("collection-tools");
+        const moreButton = document.getElementById("btn-more");
+        const randomButton = document.getElementById("btn-random");
+        const INITIAL_STATUS = statusBox.textContent;
+        let view = "search";
+        let results = [];      // obras mostradas na aba Explorar
+        let lastQuery = "";
+        let lastNote = "";
+        let canMore = false;
+
+        function renderCollection() {
+            const items = Object.values(collection).sort((a, b) => b.savedAt - a.savedAt);
+            grid.replaceChildren(...items.map((item) => createCard(item.art)));
+            showMuseumNote("");
+            showStatus(items.length
+                ? `${items.length} ${items.length === 1 ? "obra salva" : "obras salvas"}:`
+                : "Sua coleção está vazia. Toque no ♡ de uma obra para salvá-la.");
+        }
+        function setView(next) {
+            view = next;
+            tabSearch.setAttribute("aria-pressed", String(next === "search"));
+            tabCollection.setAttribute("aria-pressed", String(next === "collection"));
+            form.hidden = next !== "search";
+            toolsBox.hidden = next !== "collection";
+            if (next === "collection") {
+                moreButton.hidden = true;
+                renderCollection();
+                return;
+            }
+            grid.replaceChildren(...results.map(createCard));
+            showStatus(results.length ? `${results.length} ${results.length === 1 ? "obra" : "obras"} para “${lastQuery}”:` : INITIAL_STATUS);
+            showMuseumNote(lastNote);
+            moreButton.hidden = !canMore;
+        }
+        tabSearch.addEventListener("click", () => setView("search"));
+        tabCollection.addEventListener("click", () => setView("collection"));
+
+        // ------------------------------------------------------------------
+        // Busca
+        // ------------------------------------------------------------------
+        const STEP = 3;
+        const MAX_LIMIT = 12;
+        let limit = STEP;
+        let controller = null;
+        let sequence = 0;
+
+        async function readError(res) {
+            try {
+                const body = await res.json();
+                if (typeof body.detail === "string") return body.detail;
+            } catch (_) { /* corpo sem JSON */ }
+            return `erro ${res.status}`;
+        }
+
+        function renderResults(data, query, more) {
+            const incoming = Array.isArray(data.artworks) ? data.artworks : [];
+            if (!more) {
+                results = [];
+                grid.replaceChildren();
+            }
+            // Só "carregar mais" descarta o que já está na tela; uma busca nova mostra tudo.
+            const fresh = incoming.filter((art) => !results.some((r) => r.id === art.id));
+            const totalMuseums = Object.keys(data.museums || {}).length;
+            const failedCount = Object.values(data.museums || {}).filter((m) => m && m.error).length;
+            lastNote = failedMuseumsText(data.museums);
+            showMuseumNote(lastNote);
+
+            results.push(...fresh);
+            grid.append(...fresh.map(createCard));
+            canMore = fresh.length > 0 && limit < MAX_LIMIT;
+
+            if (results.length === 0) {
+                showStatus(totalMuseums > 0 && failedCount === totalMuseums
+                    ? "Nenhum museu respondeu agora. Tente novamente em instantes."
+                    : `Nenhum resultado para “${query}”. Tente termos em inglês (ex: Monet, Picasso).`);
+            } else if (more && fresh.length === 0) {
+                showStatus(`Não há mais obras para “${query}”.`);
+            } else {
+                showStatus(`${results.length} ${results.length === 1 ? "obra" : "obras"} para “${query}”:`);
+            }
+            moreButton.hidden = !canMore;
+        }
+
+        async function runSearch(query, museum, more = false) {
+            const mySequence = ++sequence;
+            if (controller) controller.abort(); // descarta a busca anterior ainda em andamento
+            const current = new AbortController();
+            controller = current;
+            const timer = setTimeout(() => current.abort(), REQUEST_TIMEOUT_MS);
+
+            lastQuery = query;
+            limit = more ? Math.min(limit + STEP, MAX_LIMIT) : STEP;
+            setLoading(true);
+            moreButton.disabled = true;
+            if (!more) {
+                grid.replaceChildren();
+                moreButton.hidden = true;
+                showMuseumNote("");
+            }
+            showStatus("Buscando nos acervos...");
+
+            try {
+                const params = new URLSearchParams({ q: query, museum, limit_per_museum: String(limit) });
+                const res = await fetch(`/search?${params}`, { signal: current.signal });
+                if (!res.ok) throw new Error(await readError(res));
+                const data = await res.json();
+                if (mySequence !== sequence) return; // chegou uma busca mais nova
+                renderResults(data, query, more);
+            } catch (err) {
+                if (mySequence !== sequence) return;
+                console.error("Erro na busca:", err);
+                showStatus(err.name === "AbortError"
+                    ? "A busca demorou demais. Tente novamente."
+                    : `Não foi possível buscar agora (${err.message}).`);
+                moreButton.hidden = !canMore;
+            } finally {
+                clearTimeout(timer);
+                if (mySequence === sequence) { setLoading(false); moreButton.disabled = false; }
+            }
+        }
+
+        form.addEventListener("submit", (event) => {
+            event.preventDefault();
+            const query = queryInput.value.trim();
+            if (!query) {
+                showStatus("Escreva algo para pesquisar.");
+                queryInput.focus();
+                return;
+            }
+            runSearch(query, museumSelect.value);
+        });
+
+        moreButton.addEventListener("click", () => runSearch(lastQuery, museumSelect.value, true));
+
+        // Termos amplos, em inglês (é o que os acervos entendem melhor).
+        const DISCOVER_TERMS = [
+            "impressionism", "still life", "portrait", "landscape", "sunflowers", "japanese woodblock",
+            "armor", "sculpture", "porcelain", "ancient egypt", "self-portrait", "seascape", "textile",
+            "horse", "mythology", "winter", "garden", "ukiyo-e",
+        ];
+        randomButton.addEventListener("click", () => {
+            let term;
+            do { term = DISCOVER_TERMS[Math.floor(Math.random() * DISCOVER_TERMS.length)]; }
+            while (term === lastQuery && DISCOVER_TERMS.length > 1);
+            queryInput.value = term;
+            museumSelect.value = "all";
+            runSearch(term, "all");
+        });
+
+        updateCount();
+    })();
+    </script>
+</body>
+</html>

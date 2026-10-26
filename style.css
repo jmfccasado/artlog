@@ -1,0 +1,264 @@
+:root {
+    /* Cores Primárias Artlog */
+    --artlog-red: #ba1111;
+    --artlog-yellow: #d8b60f;
+    --artlog-blue: #3737d3;
+
+    /* Base MoMA (Light Mode de Alto Contraste) */
+    --bg-main: #ffffff;
+    --bg-card: #f9f9f9;          /* Tom suave para destacar áreas de conteúdo[cite: 4] */
+    --text-main: #14121f;          /* Preto/grafite profundo[cite: 4] */
+    --text-muted: #6e6b7b;
+    --border-color: #14121f;      /* Bordas pretas finas e marcantes */
+    --border-light: #e5e5e5;
+
+    /* Destaque Ativo */
+    --brand-accent: var(--artlog-red);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    font-family: "neue-haas-grotesk-display", -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* NAVBAR EDITORIAL DO MOMA */
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 2rem 3rem;
+    background-color: var(--bg-main);
+    border-bottom: 2px solid var(--text-main);
+}
+
+.logo-container img {
+    height: 36px;
+    width: auto;
+    display: block;
+}
+
+/* SELETOR DE CORES DAS TRÊS VARIAÇÕES */
+.accent-selector {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+}
+
+.dot:hover {
+    transform: scale(1.2);
+}
+
+.dot-red { background-color: var(--artlog-red); }
+.dot-yellow { background-color: var(--artlog-yellow); }
+.dot-blue { background-color: var(--artlog-blue); }
+
+/* BARRA DE BUSCA EM GRID SECO */
+.container {
+    max-width: 1200px;
+    margin: 3rem auto;
+    padding: 0 2rem;
+}
+
+.search-section {
+    display: flex;
+    gap: 0;
+    margin-bottom: 3rem;
+    border: 2px solid var(--text-main);
+}
+
+.search-section input {
+    flex: 1;
+    padding: 1.2rem 1.5rem;
+    border: none;
+    outline: none;
+    font-size: 1.1rem;
+    font-family: inherit;
+    background-color: transparent;
+    color: var(--text-main);
+}
+
+.search-section select {
+    padding: 0 1.5rem;
+    border: none;
+    border-left: 2px solid var(--text-main);
+    background-color: transparent;
+    font-size: 1rem;
+    font-family: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.search-section button {
+    padding: 0 2.5rem;
+    background-color: var(--text-main);
+    color: var(--bg-main);
+    border: none;
+    font-size: 1rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.search-section button:hover {
+    background-color: var(--brand-accent);
+}
+
+/* GRID DE ARTES (CARDS MINIMALISTAS) */
+.artworks-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 2.5rem 2rem;
+}
+
+.card {
+    display: flex;
+    flex-direction: column;
+    background-color: var(--bg-main);
+    border-bottom: 1px solid var(--text-main);
+    padding-bottom: 1rem;
+    transition: transform 0.2s ease;
+}
+
+.card:hover {
+    transform: translateY(-4px);
+}
+
+.card-image-wrapper {
+    width: 100%;
+    aspect-ratio: 4 / 5;
+    background-color: var(--bg-card);
+    margin-bottom: 1rem;
+    overflow: hidden;
+    border: 1px solid var(--border-light);
+}
+
+.card-image-wrapper img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.card-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    line-height: 1.3;
+    margin-bottom: 0.3rem;
+    letter-spacing: -0.02em;
+}
+
+.card-artist {
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    margin-bottom: 0.8rem;
+}
+
+.card-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--brand-accent);
+}
+
+.card-credit {
+    margin-top: 0.6rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.card-link {
+    display: inline-block;
+    margin-top: 0.4rem;
+    font-size: 0.8rem;
+    color: inherit;
+}
+
+/* ABAS (EXPLORAR / MINHA COLEÇÃO) */
+.view-switch { display: flex; gap: 1.5rem; }
+.view-switch button {
+    background: none; border: none; border-bottom: 2px solid transparent;
+    padding: 0.2rem 0; font: inherit; font-size: 0.9rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); cursor: pointer;
+}
+.view-switch button[aria-pressed="true"] { color: var(--text-main); border-bottom-color: var(--brand-accent); }
+
+/* CARD: CORAÇÃO, TÍTULO CLICÁVEL, NOTA */
+.card-image-wrapper { position: relative; cursor: pointer; }
+.fav {
+    position: absolute; top: 0.6rem; right: 0.6rem; width: 2.2rem; height: 2.2rem;
+    border: 2px solid var(--text-main); border-radius: 50%; background: var(--bg-main);
+    color: var(--text-main); font-size: 1.1rem; line-height: 1; cursor: pointer;
+}
+.fav[aria-pressed="true"] { background: var(--brand-accent); color: var(--on-accent, #fff); border-color: var(--brand-accent); }
+.card-open {
+    background: none; border: none; padding: 0; font: inherit; color: inherit;
+    text-align: left; cursor: pointer;
+}
+.card-open:hover { text-decoration: underline; }
+.card-note { margin-top: 0.6rem; font-size: 0.85rem; font-style: italic; color: var(--text-muted); }
+
+/* FERRAMENTAS DA COLEÇÃO E "CARREGAR MAIS" */
+.collection-tools { display: flex; gap: 0.8rem; flex-wrap: wrap; margin-bottom: 2rem; }
+.collection-tools button, .more {
+    padding: 0.7rem 1.4rem; background: var(--text-main); color: var(--bg-main); border: none;
+    font: inherit; font-size: 0.85rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.05em; cursor: pointer;
+}
+.collection-tools button:hover, .more:hover:not(:disabled) { background: var(--brand-accent); color: var(--on-accent, #fff); }
+.more { display: block; margin: 3rem auto 0; }
+.more:disabled { opacity: 0.5; cursor: wait; }
+
+/* DETALHES DA OBRA */
+.detail {
+    margin: auto; width: min(900px, 94vw); max-height: 92vh; overflow: auto; padding: 0;
+    border: 2px solid var(--text-main); background: var(--bg-main); color: var(--text-main);
+}
+.detail::backdrop { background: rgba(20, 18, 31, 0.6); }
+.detail[open] { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
+.detail > img { width: 100%; height: 100%; max-height: 92vh; object-fit: contain; background: var(--bg-card); }
+.detail-body { padding: 2rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.detail-body h2 { font-size: 1.4rem; letter-spacing: -0.02em; line-height: 1.25; }
+.detail-meta { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--brand-accent); }
+.detail-log { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 1.2rem; }
+.detail-log label { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; margin-top: 0.6rem; }
+.detail-log input, .detail-log textarea { font: inherit; padding: 0.5rem; border: 1px solid var(--text-main); background: var(--bg-main); color: inherit; }
+.detail-log textarea { resize: vertical; }
+.detail-log button {
+    padding: 0.7rem 1rem; background: var(--text-main); color: var(--bg-main); border: none;
+    font: inherit; font-weight: 700; text-transform: uppercase; cursor: pointer;
+}
+.detail-log button:hover { background: var(--brand-accent); color: var(--on-accent, #fff); }
+.detail-close {
+    position: absolute; top: 0.5rem; right: 0.7rem; z-index: 1; width: 2.2rem; height: 2.2rem;
+    border: none; border-radius: 50%; background: var(--bg-main); font-size: 1.5rem; cursor: pointer;
+}
+@media (max-width: 700px) {
+    .navbar { padding: 1.2rem 1.2rem; flex-wrap: wrap; gap: 1rem; }
+    .detail[open] { grid-template-columns: 1fr; }
+    .detail > img { max-height: 50vh; }
+}
+
+
+/* Garante que o atributo hidden sempre esconde, mesmo com display definido em outra regra. */
+[hidden] { display: none !important; }
