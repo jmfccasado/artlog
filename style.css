@@ -134,12 +134,16 @@ body {
     flex-direction: column;
     background-color: var(--bg-main);
     border-bottom: 1px solid var(--text-main);
+    outline: 3px solid transparent;
+    outline-offset: 3px;
     padding-bottom: 1rem;
     transition: transform 0.2s ease;
 }
 
-.card:hover {
+.card:hover,
+.card:focus-within {
     transform: translateY(-4px);
+    outline-color: var(--brand-accent)
 }
 
 .card-image-wrapper {
