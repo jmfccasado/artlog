@@ -445,5 +445,205 @@ body {
     .top-art:hover img { transform: none; }
 }
 
+/* ==========================================================================
+   CURADORIAS, PERFIS PÚBLICOS, SEGUIR E FEED
+   ========================================================================== */
+
+/* Menu: agora são links (dá para abrir em outra aba) */
+.view-switch a {
+    padding: 0.2rem 0; border-bottom: 2px solid transparent; font-size: 0.9rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); text-decoration: none;
+}
+.view-switch a:hover { color: var(--text-main); }
+.view-switch a[aria-current="page"] { color: var(--text-main); border-bottom-color: var(--brand-accent); }
+.view-switch a:focus-visible { outline: 3px solid var(--brand-accent); outline-offset: 3px; }
+.account-user { text-decoration: none; }
+
+/* Avatares pequenos */
+.avatar-xs { width: 1.4rem; height: 1.4rem; font-size: 0.65rem; }
+.avatar-md { width: 2.6rem; height: 2.6rem; font-size: 1.1rem; }
+
+/* Cabeçalho de página */
+.page-head { padding-bottom: 2rem; margin-bottom: 2rem; border-bottom: 2px solid var(--text-main); }
+.page-head h1 { font-size: clamp(2.2rem, 5vw, 3.5rem); letter-spacing: -0.04em; line-height: 1; }
+.page-head p { margin-top: 0.6rem; color: var(--text-muted); }
+
+.empty-state {
+    padding: 2.5rem 2rem; text-align: center; color: var(--text-muted);
+    border: 2px dashed var(--border-light); line-height: 1.5;
+}
+.empty-state.big { padding: 4rem 2rem; border: none; }
+.empty-state.big h1 { color: var(--text-main); font-size: 2rem; letter-spacing: -0.03em; margin-bottom: 0.6rem; }
+.empty-state.big .btn-outline { display: inline-block; margin-top: 1.5rem; text-decoration: none; }
+
+.badge {
+    display: inline-block; padding: 0.1rem 0.45rem; border: 1px solid var(--text-main);
+    font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-main);
+}
+
+/* Card de curadoria: capa em mosaico */
+.cur-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 2.25rem 1.75rem; }
+.cur-card { display: flex; flex-direction: column; min-width: 0; }
+.cur-link { color: inherit; text-decoration: none; display: block; }
+.cur-link:focus-visible { outline: 3px solid var(--brand-accent); outline-offset: 4px; }
+.cur-cover {
+    display: grid; gap: 2px; aspect-ratio: 1 / 1; overflow: hidden; background: var(--text-main);
+    border: 2px solid var(--text-main);
+}
+.cur-cover img { width: 100%; height: 100%; object-fit: cover; display: block; background: var(--bg-card); transition: transform 0.25s ease; }
+.cur-link:hover .cur-cover img { transform: scale(1.03); }
+/* minmax(0, 1fr): as células ficam do mesmo tamanho, mesmo com imagens de proporções diferentes */
+.cur-cover > * { min-width: 0; min-height: 0; }
+.cover-1 { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+.cover-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr); }
+.cover-3, .cover-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); }
+.cover-3 img:first-child { grid-row: span 2; }
+.cover-0 { background: var(--bg-card); border-style: dashed; border-color: var(--text-muted); place-items: center; }
+.cur-cover-empty { font-size: 0.85rem; color: var(--text-muted); font-weight: 600; }
+.cur-title { margin-top: 0.85rem; font-size: 1.15rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.25; overflow-wrap: anywhere; }
+.cur-link:hover .cur-title { text-decoration: underline; text-underline-offset: 3px; }
+.cur-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.75rem; margin-top: 0.4rem; font-size: 0.85rem; color: var(--text-muted); }
+.cur-stars { color: var(--text-main); font-weight: 700; }
+.cur-owner {
+    display: inline-flex; align-items: center; gap: 0.5rem; color: var(--text-main);
+    text-decoration: none; font-weight: 600;
+}
+.cur-owner:hover span:last-child { text-decoration: underline; text-underline-offset: 3px; }
+.cur-owner:focus-visible { outline: 3px solid var(--brand-accent); outline-offset: 3px; }
+.cur-owner.small { margin-top: 0.6rem; font-size: 0.85rem; align-self: flex-start; }
+
+.feed-discover { margin-top: 4rem; }
+.curations { margin-top: 3.5rem; }
+.curations .section-head .btn-outline { padding: 0.5rem 1rem; }
+
+/* Perfil: estatísticas e seguir */
+.profile-stats { display: flex; flex-wrap: wrap; gap: 0.4rem 1.25rem; margin-top: 1rem; font-size: 0.9rem; font-weight: 600; }
+.stat-link {
+    background: none; border: none; padding: 0; font: inherit; color: inherit; cursor: pointer;
+    text-decoration: underline; text-decoration-color: var(--border-light); text-underline-offset: 4px;
+}
+.stat-link:hover { text-decoration-color: var(--text-main); }
+.stat-link:focus-visible { outline: 3px solid var(--brand-accent); outline-offset: 2px; }
+.profile-actions { display: flex; flex-direction: column; gap: 0.6rem; align-items: flex-end; }
+.btn-follow {
+    min-width: 9rem; padding: 0.75rem 1.4rem; border: 2px solid var(--text-main);
+    background: var(--text-main); color: var(--bg-main); font: inherit; font-size: 0.9rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer;
+}
+.btn-follow:hover { background: var(--brand-accent); border-color: var(--brand-accent); color: var(--on-accent, #fff); }
+.btn-follow.is-following { background: var(--bg-main); color: var(--text-main); }
+.btn-follow.is-following:hover { background: var(--bg-main); color: var(--artlog-red); border-color: var(--artlog-red); }
+.btn-follow.is-following:hover::after { content: " · deixar"; }
+.btn-follow:focus-visible { outline: 3px solid var(--brand-accent); outline-offset: 3px; }
+.btn-follow:disabled { opacity: 0.6; cursor: progress; }
+
+/* Página da curadoria */
+.cur-head { padding-bottom: 2rem; margin-bottom: 2.5rem; border-bottom: 2px solid var(--text-main); }
+.cur-kicker { display: flex; align-items: center; gap: 0.75rem; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+.cur-kicker > span:first-child { padding-bottom: 0.2rem; border-bottom: 3px solid var(--brand-accent); }
+.cur-head h1 { margin-top: 1rem; font-size: clamp(2.2rem, 5vw, 3.75rem); letter-spacing: -0.04em; line-height: 1.02; overflow-wrap: anywhere; }
+.cur-head .cur-owner { margin-top: 1rem; }
+.cur-description { margin-top: 1.1rem; max-width: 65ch; line-height: 1.55; white-space: pre-line; overflow-wrap: anywhere; }
+.cur-meta-line { margin-top: 0.9rem; font-size: 0.85rem; color: var(--text-muted); }
+.cur-rating { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem 2.5rem; margin-top: 1.75rem; }
+.rating-summary { font-size: 0.95rem; color: var(--text-muted); }
+.rating-big { font-size: 1.4rem; font-weight: 700; color: var(--text-main); letter-spacing: -0.02em; }
+.rate { display: flex; align-items: center; gap: 0.9rem; }
+.rate-label { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+.rate-stars { display: flex; }
+.star {
+    width: 2.4rem; height: 2.4rem; background: none; border: none; padding: 0; cursor: pointer;
+    font-size: 1.8rem; line-height: 1; color: var(--text-muted);
+}
+.star.is-on { color: var(--brand-accent); }
+.star:focus-visible { outline: 3px solid var(--brand-accent); outline-offset: -2px; }
+.rate-login { font-size: 0.9rem; color: var(--text-muted); }
+.cur-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1rem; margin-top: 1.75rem; }
+.cur-actions .btn-outline { padding: 0.55rem 1rem; }
+.account-link.danger { color: var(--artlog-red); }
+
+.card-seen { margin-top: 0.6rem; font-size: 0.8rem; font-weight: 600; color: var(--text-main); }
+.item-controls { margin-top: 0.8rem; }
+
+/* Janela da obra: nota e data dentro da curadoria */
+.detail-item { margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px solid var(--border-light); display: flex; flex-direction: column; gap: 0.4rem; }
+.detail-item-context { font-size: 0.85rem; font-weight: 600; color: var(--text-muted); }
+#detail-item-edit { display: flex; flex-direction: column; gap: 0.4rem; }
+#detail-item-edit[hidden], #detail-item-read[hidden] { display: none; }
+.detail-read-seen { font-size: 0.85rem; font-weight: 600; }
+.detail-read-note { margin: 0.4rem 0 0; padding-left: 1rem; border-left: 3px solid var(--brand-accent); font-style: italic; line-height: 1.5; white-space: pre-line; }
+
+/* Janela "Salvar em curadoria" */
+.save-dialog { width: min(480px, 94vw); }
+.save-art { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
+.save-art img { width: 3.5rem; height: 4.5rem; object-fit: cover; border: 1px solid var(--text-main); background: var(--bg-card); flex: none; }
+.save-art strong { display: block; line-height: 1.25; }
+.save-art span { display: block; font-size: 0.85rem; color: var(--text-muted); margin-top: 0.2rem; }
+.save-list { list-style: none; max-height: 45vh; overflow: auto; border-top: 1px solid var(--border-light); }
+.save-list li { border-bottom: 1px solid var(--border-light); }
+.save-item { display: flex; align-items: center; gap: 0.9rem; padding: 0.8rem 0.2rem; cursor: pointer; }
+.save-item:hover { background: var(--bg-card); }
+.save-item input { width: 1.2rem; height: 1.2rem; accent-color: var(--text-main); flex: none; }
+.save-item input:focus-visible { outline: 3px solid var(--brand-accent); outline-offset: 2px; }
+.save-item-text strong { display: block; }
+.save-item-text span { display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.1rem; }
+.save-new { margin-top: 1.5rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.save-new > label:first-child { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+.save-new-row { display: flex; gap: 0.5rem; }
+.save-new-row input {
+    flex: 1; min-width: 0; font: inherit; padding: 0.65rem 0.8rem; border: 2px solid var(--text-main);
+    border-radius: 0; background: var(--bg-main); color: inherit;
+}
+.save-new-row input:focus { outline: 3px solid var(--brand-accent); outline-offset: 2px; }
+.save-new .auth-check { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; cursor: pointer; }
+
+/* Formulário de curadoria: visibilidade */
+.visibility { border: none; margin-top: 1.25rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.visibility legend { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.5rem; }
+.visibility .auth-check { align-items: flex-start; margin: 0; line-height: 1.4; }
+.visibility input { margin-top: 0.2rem; accent-color: var(--text-main); }
+
+/* Lista de pessoas */
+.people-list { list-style: none; }
+.people-list li { border-bottom: 1px solid var(--border-light); }
+.person { display: flex; align-items: center; gap: 0.9rem; padding: 0.8rem 0.2rem; color: inherit; text-decoration: none; }
+.person:hover { background: var(--bg-card); }
+.person:focus-visible { outline: 3px solid var(--brand-accent); outline-offset: -3px; }
+.person-text strong { display: block; }
+.person-text span { display: block; font-size: 0.85rem; color: var(--text-muted); }
+
+/* Confirmação */
+.confirm-dialog { width: min(420px, 94vw); }
+.confirm-dialog p { margin-top: 0.75rem; line-height: 1.5; }
+.confirm-actions { display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.75rem; }
+.btn-danger {
+    padding: 0.65rem 1.2rem; border: 2px solid var(--artlog-red); background: var(--artlog-red); color: #fff;
+    font: inherit; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer;
+}
+.btn-danger:focus-visible { outline: 3px solid var(--text-main); outline-offset: 2px; }
+
+/* Por que pedimos login */
+.auth-reason { margin: -0.5rem 0 1.25rem; padding: 0.75rem 0.9rem; background: var(--bg-card); border-left: 3px solid var(--brand-accent); font-size: 0.9rem; line-height: 1.45; }
+
+/* Aviso rápido no rodapé */
+.toast {
+    position: fixed; left: 50%; bottom: 1.5rem; transform: translateX(-50%); z-index: 50;
+    max-width: min(560px, calc(100vw - 2rem)); padding: 0.85rem 1.25rem;
+    background: var(--text-main); color: var(--bg-main); font-weight: 600; font-size: 0.9rem; line-height: 1.4;
+    box-shadow: 0 6px 24px rgba(20, 18, 31, 0.25);
+}
+
+@media (max-width: 640px) {
+    .profile-actions { grid-column: 1 / -1; align-items: flex-start; flex-direction: row; }
+    .cur-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.75rem 1rem; }
+    .cur-title { font-size: 1rem; }
+    .save-new-row { flex-direction: column; }
+    .cur-rating { gap: 0.75rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .cur-cover img { transition: none; }
+    .cur-link:hover .cur-cover img { transform: none; }
+}
+
 /* Garante que o atributo hidden sempre esconde, mesmo com display definido em outra regra. */
 [hidden] { display: none !important; }

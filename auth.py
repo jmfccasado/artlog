@@ -87,6 +87,50 @@ CREATE TABLE IF NOT EXISTS top_artworks (
     PRIMARY KEY (user_id, position),
     UNIQUE (user_id, artwork_id)
 );
+
+-- Curadorias: listas de obras com nome, públicas ou privadas (substituem a "Minha coleção").
+CREATE TABLE IF NOT EXISTS curations (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title       TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    is_public   INTEGER NOT NULL DEFAULT 1,
+    created_at  INTEGER NOT NULL,
+    updated_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS curations_user ON curations(user_id);
+CREATE INDEX IF NOT EXISTS curations_public_updated ON curations(is_public, updated_at);
+
+-- Obras de cada curadoria, com a nota e a data em que a pessoa viu a obra.
+CREATE TABLE IF NOT EXISTS curation_items (
+    curation_id INTEGER NOT NULL REFERENCES curations(id) ON DELETE CASCADE,
+    artwork_id  TEXT NOT NULL,
+    artwork     TEXT NOT NULL,  -- JSON (cópia da obra, como no Top 5)
+    position    INTEGER NOT NULL,
+    note        TEXT NOT NULL DEFAULT '',
+    seen        TEXT NOT NULL DEFAULT '',  -- AAAA-MM-DD ou vazio
+    added_at    INTEGER NOT NULL,
+    PRIMARY KEY (curation_id, artwork_id)
+);
+
+-- Uma nota (1 a 5 estrelas) por pessoa em cada curadoria.
+CREATE TABLE IF NOT EXISTS curation_ratings (
+    curation_id INTEGER NOT NULL REFERENCES curations(id) ON DELETE CASCADE,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    stars       INTEGER NOT NULL CHECK (stars BETWEEN 1 AND 5),
+    rated_at    INTEGER NOT NULL,
+    PRIMARY KEY (curation_id, user_id)
+);
+
+-- Quem segue quem.
+CREATE TABLE IF NOT EXISTS follows (
+    follower_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    followee_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at  INTEGER NOT NULL,
+    PRIMARY KEY (follower_id, followee_id),
+    CHECK (follower_id != followee_id)
+);
+CREATE INDEX IF NOT EXISTS follows_followee ON follows(followee_id);
 """
 
 # Colunas que entraram depois da primeira versão. Bancos antigos ganham as colunas
@@ -248,6 +292,17 @@ def public_user(user: sqlite3.Row) -> dict[str, Any]:
 
 
 _public = public_user
+
+
+def profile_card(user: sqlite3.Row) -> dict[str, Any]:
+    """Versão pública de alguém (para outras pessoas verem): sem e-mail."""
+    return {
+        "id": user["id"],
+        "username": user["username"],
+        "display_name": user["display_name"],
+        "bio": user["bio"],
+        "avatar_url": avatar_url(user),
+    }
 
 
 def optional_user(request: Request, db: sqlite3.Connection = Depends(get_db)) -> dict[str, Any] | None:

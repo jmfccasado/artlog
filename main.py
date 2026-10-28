@@ -44,6 +44,7 @@ _load_env_file(BASE_DIR / ".env")
 # Importado depois do .env, porque lê ARTLOG_DB e COOKIE_SECURE de lá.
 from auth import router as auth_router  # noqa: E402
 from user_profile import router as profile_router  # noqa: E402
+from social import router as social_router  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s [%(name)s] %(message)s")
 log = logging.getLogger("artlog")
@@ -71,6 +72,8 @@ app.add_middleware(
 app.include_router(auth_router)
 # Perfil e Top 5: /profile, /profile/password, /profile/avatar, /profile/top5 (ver user_profile.py).
 app.include_router(profile_router)
+# Curadorias, avaliações, perfis públicos, seguir e feed (ver social.py).
+app.include_router(social_router)
 
 # Pasta de assets (imagens, logos, ícones), se existir.
 ASSETS_DIR = BASE_DIR / "assets"
@@ -97,6 +100,20 @@ def serve_index() -> FileResponse:
 @app.get("/style.css", include_in_schema=False)
 def serve_css() -> FileResponse:
     return _send_file("style.css")
+
+
+@app.get("/app.js", include_in_schema=False)
+def serve_js() -> FileResponse:
+    return _send_file("app.js")
+
+
+# Páginas com endereço próprio (dá para compartilhar o link). Todas usam o mesmo
+# index.html; o app.js lê o endereço e mostra a tela certa.
+@app.get("/seguindo", include_in_schema=False)
+@app.get("/u/{username}", include_in_schema=False)
+@app.get("/c/{curation_id}", include_in_schema=False)
+def serve_app_page() -> FileResponse:
+    return _send_file("index.html")
 
 
 # ---------------------------------------------------------------------------

@@ -241,6 +241,20 @@ class ArtworkIn(BaseModel):
     credit: str | None = Field(None, max_length=500)
 
 
+ARTIC_LOCAL_IMAGE = re.compile(r"/artic-image/[A-Za-z0-9_-]{1,64}")
+
+
+def clean_artwork(art: ArtworkIn) -> dict[str, Any]:
+    """Confere uma obra vinda do navegador. Usada pelo Top 5 e pelas curadorias."""
+    # Só imagens das origens que o próprio app usa (evita links estranhos no perfil).
+    if not (art.image.startswith("https://") or ARTIC_LOCAL_IMAGE.fullmatch(art.image)):
+        raise HTTPException(422, "Imagem de obra inválida.")
+    data = art.model_dump()
+    if data["url"] and not data["url"].startswith("https://"):
+        data["url"] = None
+    return data
+
+
 class Top5In(BaseModel):
     artworks: list[ArtworkIn] = Field(max_length=TOP_SIZE)
 
@@ -252,20 +266,15 @@ def save_top5(
     ids = [art.id for art in data.artworks]
     if len(set(ids)) != len(ids):
         raise HTTPException(422, "A mesma obra aparece duas vezes no Top 5.")
-    for art in data.artworks:
-        # Só imagens das origens que o próprio app usa (evita links estranhos no perfil).
-        if not (art.image.startswith("https://") or re.fullmatch(r"/artic-image/[A-Za-z0-9_-]{1,64}", art.image)):
-            raise HTTPException(422, "Imagem de obra inválida.")
-        if art.url and not art.url.startswith("https://"):
-            art.url = None
+    artworks = [clean_artwork(art) for art in data.artworks]
 
     with db:
         db.execute("DELETE FROM top_artworks WHERE user_id = ?", (user["id"],))
         db.executemany(
             "INSERT INTO top_artworks (user_id, position, artwork_id, artwork) VALUES (?, ?, ?, ?)",
             [
-                (user["id"], position, art.id, json.dumps(art.model_dump(), ensure_ascii=False))
-                for position, art in enumerate(data.artworks, start=1)
+                (user["id"], position, art["id"], json.dumps(art, ensure_ascii=False))
+                for position, art in enumerate(artworks, start=1)
             ],
         )
     return {"top5": _top5(db, user["id"])}

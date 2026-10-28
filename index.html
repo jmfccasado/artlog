@@ -80,14 +80,14 @@
 <body>
 
     <header class="navbar">
-        <a href="/" class="logo-container" aria-label="artlog, página inicial">
+        <a href="/" class="logo-container" aria-label="artlog, página inicial" data-link>
             <span class="logo-text"><span class="logo-art">art</span><span class="logo-log">log</span></span>
         </a>
 
         <nav class="view-switch" aria-label="Seções">
-            <button type="button" id="tab-search" aria-pressed="true">Explorar</button>
-            <button type="button" id="tab-collection" aria-pressed="false">Minha coleção <span id="collection-count">0</span></button>
-            <button type="button" id="tab-profile" aria-pressed="false" hidden>Perfil</button>
+            <a href="/" id="tab-explore" data-link>Explorar</a>
+            <a href="/seguindo" id="tab-feed" data-link hidden>Seguindo</a>
+            <a href="/" id="tab-profile" data-link hidden>Perfil</a>
         </nav>
 
         <div class="nav-end">
@@ -98,71 +98,155 @@
             </div>
             <div class="account is-loading" id="account">
                 <button type="button" id="btn-login" class="account-btn">Entrar</button>
-                <button type="button" id="account-user" class="account-user" hidden aria-label="Abrir meu perfil">
+                <a href="/" id="account-user" class="account-user" data-link hidden aria-label="Abrir meu perfil">
                     <span id="account-avatar" class="avatar avatar-sm" aria-hidden="true"></span>
                     <span id="account-name"></span>
-                </button>
+                </a>
                 <button type="button" id="btn-logout" class="account-link" hidden>Sair</button>
             </div>
         </div>
     </header>
 
     <main class="container">
-        <form id="search-form" class="search-section" role="search">
-            <input type="search" id="query-input" name="q" maxlength="100" autocomplete="off"
-                   placeholder="Pesquisar (ex: Monet, Van Gogh)..." aria-label="Pesquisar artista ou obra">
-            <select id="museum-input" name="museum" aria-label="Museu">
-                <option value="all">Todos os museus</option>
-                <option value="met">The Met</option>
-                <option value="artic">Art Institute of Chicago</option>
-                <option value="cleveland">Cleveland Museum of Art</option>
-                <option value="smk">SMK (Dinamarca)</option>
-                <option value="vam">Victoria and Albert Museum</option>
-                <option value="louvre">Musée du Louvre</option>
-                <option value="smithsonian">Smithsonian (museus de arte)</option>
-                <option value="whitney">Whitney Museum of American Art</option>
-                <option value="getty">J. Paul Getty Museum</option>
-                <option value="guggenheim">Guggenheim Museum</option>
-            </select>
-            <button type="submit" id="btn-search">Pesquisar</button>
-            <button type="button" id="btn-random">Surpreenda-me</button>
-        </form>
 
-        <div id="status" class="status" role="status" aria-live="polite">
-            Pesquise por um artista ou obra. Os acervos usam termos em inglês (ex: Monet, sunflowers).
-        </div>
-        <p id="museum-note" class="museum-note" hidden></p>
-        <div id="collection-tools" class="collection-tools" hidden>
-            <button type="button" id="export-json">Exportar JSON</button>
-            <button type="button" id="export-csv">Exportar CSV</button>
-            <button type="button" id="import-json">Importar JSON</button>
-            <input type="file" id="import-file" accept="application/json,.json" hidden>
-        </div>
-        <section id="profile-view" class="profile" hidden aria-labelledby="profile-name">
+        <!-- EXPLORAR -->
+        <section id="view-explore" class="view" aria-label="Explorar">
+            <form id="search-form" class="search-section" role="search">
+                <input type="search" id="query-input" name="q" maxlength="100" autocomplete="off"
+                       placeholder="Pesquisar (ex: Monet, Van Gogh)..." aria-label="Pesquisar artista ou obra">
+                <select id="museum-input" name="museum" aria-label="Museu">
+                    <option value="all">Todos os museus</option>
+                    <option value="met">The Met</option>
+                    <option value="artic">Art Institute of Chicago</option>
+                    <option value="cleveland">Cleveland Museum of Art</option>
+                    <option value="smk">SMK (Dinamarca)</option>
+                    <option value="vam">Victoria and Albert Museum</option>
+                    <option value="louvre">Musée du Louvre</option>
+                    <option value="smithsonian">Smithsonian (museus de arte)</option>
+                    <option value="whitney">Whitney Museum of American Art</option>
+                    <option value="getty">J. Paul Getty Museum</option>
+                    <option value="guggenheim">Guggenheim Museum</option>
+                </select>
+                <button type="submit" id="btn-search">Pesquisar</button>
+                <button type="button" id="btn-random">Surpreenda-me</button>
+            </form>
+
+            <div id="status" class="status" role="status" aria-live="polite">
+                Pesquise por um artista ou obra. Os acervos usam termos em inglês (ex: Monet, sunflowers).
+            </div>
+            <p id="museum-note" class="museum-note" hidden></p>
+            <section id="grid" class="artworks-grid" aria-label="Resultados"></section>
+            <button type="button" id="btn-more" class="more" hidden>Carregar mais</button>
+        </section>
+
+        <!-- SEGUINDO (FEED) -->
+        <section id="view-feed" class="view" hidden aria-labelledby="feed-title">
+            <header class="page-head">
+                <h1 id="feed-title">Seguindo</h1>
+                <p>Curadorias novas e atualizadas de quem você segue.</p>
+            </header>
+            <div id="feed-list" class="cur-grid"></div>
+            <p id="feed-empty" class="empty-state" hidden></p>
+
+            <section class="feed-discover" aria-labelledby="discover-title">
+                <div class="section-head">
+                    <h2 id="discover-title">Da comunidade</h2>
+                    <p>Curadorias públicas recentes. Abra uma e siga quem tem um olhar parecido com o seu.</p>
+                </div>
+                <div id="discover-list" class="cur-grid"></div>
+                <p id="discover-empty" class="empty-state" hidden>Ainda não há curadorias públicas de outras pessoas.</p>
+            </section>
+        </section>
+
+        <!-- PERFIL (MEU OU DE OUTRA PESSOA) -->
+        <section id="view-profile" class="view profile" hidden aria-labelledby="profile-name">
             <header class="profile-head">
                 <span id="profile-avatar" class="avatar avatar-lg" aria-hidden="true"></span>
                 <div class="profile-info">
                     <h1 id="profile-name"></h1>
                     <p id="profile-handle" class="profile-handle"></p>
                     <p id="profile-bio" class="profile-bio"></p>
+                    <p class="profile-stats">
+                        <span id="stat-curations"></span>
+                        <button type="button" id="stat-followers" class="stat-link"></button>
+                        <button type="button" id="stat-following" class="stat-link"></button>
+                    </p>
                 </div>
-                <button type="button" id="btn-edit-profile" class="btn-outline">Editar perfil</button>
+                <div class="profile-actions">
+                    <button type="button" id="btn-edit-profile" class="btn-outline" hidden>Editar perfil</button>
+                    <button type="button" id="btn-follow" class="btn-follow" hidden aria-pressed="false"></button>
+                </div>
             </header>
-            <p id="profile-msg" class="profile-msg" role="status" aria-live="polite"></p>
 
-            <section class="top5" aria-labelledby="top5-title">
+            <section id="top5-section" class="top5" aria-labelledby="top5-title">
                 <div class="section-head">
                     <h2 id="top5-title">Top 5 obras</h2>
-                    <p>As obras que dizem quem você é. Use as setas para mudar a ordem.</p>
+                    <p id="top5-hint">As obras que dizem quem você é. Use as setas para mudar a ordem.</p>
                 </div>
                 <ol id="top5-list" class="top5-list"></ol>
             </section>
+
+            <section class="curations" aria-labelledby="curations-title">
+                <div class="section-head">
+                    <h2 id="curations-title">Curadorias</h2>
+                    <button type="button" id="btn-new-curation" class="btn-outline" hidden>+ Nova curadoria</button>
+                </div>
+                <div id="profile-curations" class="cur-grid"></div>
+                <p id="profile-curations-empty" class="empty-state" hidden></p>
+            </section>
         </section>
 
-        <section id="grid" class="artworks-grid" aria-label="Resultados"></section>
-        <button type="button" id="btn-more" class="more" hidden>Carregar mais</button>
+        <!-- CURADORIA -->
+        <section id="view-curation" class="view" hidden aria-labelledby="cur-title">
+            <header class="cur-head">
+                <p class="cur-kicker">
+                    <span>Curadoria</span>
+                    <span id="cur-private" class="badge" hidden>Privada</span>
+                </p>
+                <h1 id="cur-title"></h1>
+                <a id="cur-owner" class="cur-owner" data-link href="/">
+                    <span id="cur-owner-avatar" class="avatar avatar-sm" aria-hidden="true"></span>
+                    <span id="cur-owner-name"></span>
+                </a>
+                <p id="cur-description" class="cur-description"></p>
+                <p id="cur-meta" class="cur-meta-line"></p>
+
+                <div class="cur-rating">
+                    <p id="cur-rating-summary" class="rating-summary"></p>
+                    <div id="cur-rate" class="rate" hidden>
+                        <span id="rate-label" class="rate-label">Sua nota</span>
+                        <div id="rate-stars" class="rate-stars" role="radiogroup" aria-labelledby="rate-label"></div>
+                        <button type="button" id="rate-clear" class="account-link" hidden>Tirar nota</button>
+                    </div>
+                    <p id="rate-login" class="rate-login" hidden>
+                        <button type="button" id="rate-login-btn" class="account-link">Entre</button> para avaliar esta curadoria.
+                    </p>
+                </div>
+
+                <div id="cur-owner-actions" class="cur-actions" hidden>
+                    <button type="button" id="cur-edit" class="btn-outline">Editar</button>
+                    <button type="button" id="cur-export" class="btn-outline">Exportar CSV</button>
+                    <button type="button" id="cur-delete" class="account-link danger">Excluir curadoria</button>
+                </div>
+            </header>
+
+            <section id="cur-items" class="artworks-grid" aria-label="Obras da curadoria"></section>
+            <p id="cur-empty" class="empty-state" hidden></p>
+        </section>
+
+        <!-- NÃO ENCONTRADO -->
+        <section id="view-missing" class="view" hidden>
+            <div class="empty-state big">
+                <h1 id="missing-title">Não encontramos esta página.</h1>
+                <p id="missing-text">Ela pode ter sido apagada ou estar privada.</p>
+                <a href="/" class="btn-outline" data-link>Voltar para Explorar</a>
+            </div>
+        </section>
     </main>
 
+    <p id="toast" class="toast" role="status" aria-live="polite" hidden></p>
+
+    <!-- Detalhes da obra -->
     <dialog id="detail" class="detail" aria-labelledby="detail-title">
         <button type="button" id="detail-close" class="detail-close" aria-label="Fechar">×</button>
         <img id="detail-img" alt="">
@@ -172,13 +256,96 @@
             <p id="detail-meta" class="detail-meta"></p>
             <p id="detail-credit" class="card-credit"></p>
             <a id="detail-link" class="card-link" target="_blank" rel="noopener noreferrer" hidden>Ver no site do museu</a>
+
             <div class="detail-log">
                 <button type="button" id="detail-save"></button>
                 <button type="button" id="detail-top" class="btn-outline" hidden></button>
-                <label for="detail-seen">Visto em</label>
-                <input type="date" id="detail-seen">
-                <label for="detail-note">Notas</label>
-                <textarea id="detail-note" rows="4" maxlength="2000"></textarea>
+
+                <!-- Nota e data: aparecem quando a obra foi aberta de dentro de uma curadoria -->
+                <div id="detail-item" class="detail-item" hidden>
+                    <p id="detail-item-context" class="detail-item-context"></p>
+                    <div id="detail-item-edit">
+                        <label for="detail-seen">Visto em</label>
+                        <input type="date" id="detail-seen">
+                        <label for="detail-note">Nota</label>
+                        <textarea id="detail-note" rows="4" maxlength="2000" placeholder="O que você achou, onde viu, com quem…"></textarea>
+                        <p id="detail-saved" class="auth-hint" aria-live="polite"></p>
+                    </div>
+                    <div id="detail-item-read">
+                        <p id="detail-read-seen" class="detail-read-seen"></p>
+                        <blockquote id="detail-read-note" class="detail-read-note"></blockquote>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- Salvar obra em curadorias (o ♡) -->
+    <dialog id="save-dialog" class="auth save-dialog" aria-labelledby="save-title">
+        <button type="button" id="save-close" class="detail-close" aria-label="Fechar">×</button>
+        <div class="auth-body">
+            <h2 id="save-title">Salvar em curadoria</h2>
+            <div class="save-art">
+                <img id="save-art-img" alt="">
+                <div><strong id="save-art-title"></strong><span id="save-art-artist"></span></div>
+            </div>
+            <ul id="save-list" class="save-list" aria-label="Suas curadorias"></ul>
+            <p id="save-empty" class="auth-hint" hidden>Você ainda não tem curadorias. Crie a primeira abaixo.</p>
+            <form id="save-new" class="save-new">
+                <label for="save-new-title">Nova curadoria</label>
+                <div class="save-new-row">
+                    <input id="save-new-title" name="title" maxlength="80" required placeholder="Ex.: Céus de Van Gogh">
+                    <button type="submit" class="btn-outline">Criar e salvar</button>
+                </div>
+                <label class="auth-check"><input type="checkbox" id="save-new-private"> Privada (só você vê)</label>
+            </form>
+            <p id="save-error" class="auth-error" role="alert"></p>
+        </div>
+    </dialog>
+
+    <!-- Criar / editar curadoria -->
+    <dialog id="cur-dialog" class="auth" aria-labelledby="cur-dialog-title">
+        <button type="button" id="cur-dialog-close" class="detail-close" aria-label="Fechar">×</button>
+        <div class="auth-body">
+            <h2 id="cur-dialog-title">Nova curadoria</h2>
+            <form id="cur-form" class="auth-form">
+                <label for="cf-title">Título</label>
+                <input id="cf-title" name="title" required maxlength="80">
+                <label for="cf-description">Descrição</label>
+                <textarea id="cf-description" name="description" rows="4" maxlength="1000"
+                          placeholder="O fio que une estas obras."></textarea>
+                <fieldset class="visibility">
+                    <legend>Quem pode ver</legend>
+                    <label class="auth-check"><input type="radio" name="visibility" value="public" checked>
+                        <span><strong>Pública</strong> · aparece no seu perfil e para quem segue você, e pode ser avaliada</span></label>
+                    <label class="auth-check"><input type="radio" name="visibility" value="private">
+                        <span><strong>Privada</strong> · só você vê</span></label>
+                </fieldset>
+                <p id="cf-private-warning" class="auth-hint" hidden>Ao ficar privada, as avaliações que ela recebeu são apagadas.</p>
+                <p class="auth-error" role="alert"></p>
+                <button type="submit" id="cf-submit">Criar curadoria</button>
+            </form>
+        </div>
+    </dialog>
+
+    <!-- Seguidores / seguindo -->
+    <dialog id="people-dialog" class="auth" aria-labelledby="people-title">
+        <button type="button" id="people-close" class="detail-close" aria-label="Fechar">×</button>
+        <div class="auth-body">
+            <h2 id="people-title"></h2>
+            <ul id="people-list" class="people-list"></ul>
+            <p id="people-empty" class="auth-hint" hidden></p>
+        </div>
+    </dialog>
+
+    <!-- Confirmação -->
+    <dialog id="confirm-dialog" class="auth confirm-dialog" aria-labelledby="confirm-title">
+        <div class="auth-body">
+            <h2 id="confirm-title"></h2>
+            <p id="confirm-text"></p>
+            <div class="confirm-actions">
+                <button type="button" id="confirm-cancel" class="btn-outline">Cancelar</button>
+                <button type="button" id="confirm-ok" class="btn-danger"></button>
             </div>
         </div>
     </dialog>
@@ -208,7 +375,7 @@
                 <input id="pf-username" name="username" required minlength="3" maxlength="20"
                        pattern="[A-Za-z0-9_]{3,20}" autocapitalize="none" spellcheck="false" autocomplete="username"
                        aria-describedby="pf-username-hint">
-                <p id="pf-username-hint" class="auth-hint">De 3 a 20 caracteres: letras sem acento, números ou _.</p>
+                <p id="pf-username-hint" class="auth-hint">De 3 a 20 caracteres: letras sem acento, números ou _. Mudar o @ muda o link do seu perfil.</p>
                 <label for="pf-email">E-mail</label>
                 <input id="pf-email" name="email" type="email" required maxlength="254" autocomplete="email">
                 <label for="pf-bio">Bio</label>
@@ -239,9 +406,9 @@
         <button type="button" id="top-picker-close" class="detail-close" aria-label="Fechar">×</button>
         <div class="auth-body">
             <h2 id="top-picker-title">Escolha uma obra</h2>
-            <p class="auth-hint picker-hint">Obras da sua coleção. Para incluir outras, salve-as com ♡ em Explorar, ou abra a obra e toque em “Adicionar ao Top 5”.</p>
+            <p class="auth-hint picker-hint">Obras das suas curadorias. Para incluir outras, abra qualquer obra e toque em “Adicionar ao Top 5”.</p>
             <ul id="top-picker-list" class="picker-list"></ul>
-            <p id="top-picker-empty" class="picker-empty" hidden>Sua coleção está vazia. Salve obras com ♡ na aba Explorar para escolher aqui.</p>
+            <p id="top-picker-empty" class="picker-empty" hidden></p>
         </div>
     </dialog>
 
@@ -250,6 +417,7 @@
         <div class="auth-body">
             <span class="logo-text auth-logo" aria-hidden="true"><span class="logo-art">art</span><span class="logo-log">log</span></span>
             <h2 id="auth-title">Que bom ver você de novo</h2>
+            <p id="auth-reason" class="auth-reason" hidden></p>
             <nav class="view-switch auth-tabs" aria-label="Entrar ou criar conta">
                 <button type="button" id="auth-tab-login" aria-pressed="true">Entrar</button>
                 <button type="button" id="auth-tab-register" aria-pressed="false">Criar conta</button>
@@ -285,987 +453,6 @@
         </div>
     </dialog>
 
-    <script>
-    (() => {
-        "use strict";
-
-        const REQUEST_TIMEOUT_MS = 30000;
-        const LIMIT_PER_MUSEUM = 3;
-
-        // Nomes exibidos para os museus que a API informa em "museums".
-        const MUSEUM_NAMES = {
-            met: "The Met",
-            artic: "Art Institute of Chicago",
-            cleveland: "Cleveland Museum of Art",
-            smk: "SMK (Dinamarca)",
-            vam: "Victoria and Albert Museum",
-            louvre: "Musée du Louvre",
-            smithsonian: "Smithsonian",
-            whitney: "Whitney Museum",
-            getty: "Getty Museum",
-            guggenheim: "Guggenheim Museum",
-        };
-
-        // Cores de destaque: variável CSS e cor do texto legível por cima dela.
-        const ACCENTS = {
-            red:    { cssVar: "--artlog-red",    onAccent: "#ffffff" },
-            yellow: { cssVar: "--artlog-yellow", onAccent: "#14121f" },
-            blue:   { cssVar: "--artlog-blue",   onAccent: "#ffffff" },
-        };
-
-        // Imagem local: não depende de nenhum serviço externo, então nunca falha.
-        const PLACEHOLDER = "data:image/svg+xml;utf8," + encodeURIComponent(
-            '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="500" viewBox="0 0 400 500">' +
-            '<rect width="400" height="500" fill="#f9f9f9"/>' +
-            '<text x="200" y="256" font-family="Helvetica, Arial, sans-serif" font-size="20" ' +
-            'text-anchor="middle" fill="#6e6b7b">Imagem indisponível</text></svg>'
-        );
-
-        const form = document.getElementById("search-form");
-        const queryInput = document.getElementById("query-input");
-        const museumSelect = document.getElementById("museum-input");
-        const searchButton = document.getElementById("btn-search");
-        const statusBox = document.getElementById("status");
-        const museumNote = document.getElementById("museum-note");
-        const grid = document.getElementById("grid");
-        const dots = document.querySelectorAll(".dot[data-accent]");
-
-        // ------------------------------------------------------------------
-        // Cor de destaque
-        // ------------------------------------------------------------------
-        function setAccent(name, save = true) {
-            const accent = ACCENTS[name];
-            if (!accent) return;
-            const root = document.documentElement;
-            root.style.setProperty("--brand-accent", `var(${accent.cssVar})`);
-            root.style.setProperty("--on-accent", accent.onAccent);
-            dots.forEach((dot) => dot.setAttribute("aria-pressed", String(dot.dataset.accent === name)));
-            if (save) {
-                try { localStorage.setItem("artlog-accent", name); } catch (_) { /* modo privado */ }
-            }
-        }
-
-        dots.forEach((dot) => dot.addEventListener("click", () => setAccent(dot.dataset.accent)));
-
-        let savedAccent = null;
-        try { savedAccent = localStorage.getItem("artlog-accent"); } catch (_) { /* ignora */ }
-        setAccent(ACCENTS[savedAccent] ? savedAccent : "red", false);
-
-        // ------------------------------------------------------------------
-        // Interface
-        // ------------------------------------------------------------------
-        function showStatus(text) {
-            statusBox.textContent = text;
-        }
-
-        function showMuseumNote(text) {
-            museumNote.textContent = text || "";
-            museumNote.hidden = !text;
-        }
-
-        function setLoading(isLoading) {
-            searchButton.disabled = isLoading;
-            grid.setAttribute("aria-busy", String(isLoading));
-        }
-
-        // Os cards são montados com DOM e textContent: títulos com aspas ou "<"
-        // não quebram mais o HTML.
-        function createCard(art) {
-            const card = document.createElement("article");
-            card.className = "card";
-
-            const wrapper = document.createElement("div");
-            wrapper.className = "card-image-wrapper";
-
-            const img = document.createElement("img");
-            img.alt = art.title || "Obra sem título";
-            img.loading = "lazy";
-            img.referrerPolicy = "no-referrer";
-            // Uma única troca (once): se a imagem original falhar, entra o placeholder local.
-            img.addEventListener("error", () => {
-                console.warn("Imagem não carregou:", art.museum, art.image);
-                img.src = PLACEHOLDER;
-            }, { once: true });
-            img.src = art.image || PLACEHOLDER;
-            wrapper.appendChild(img);
-            wrapper.appendChild(createFavButton(art));
-            wrapper.addEventListener("click", () => openDetail(art));
-
-            const title = document.createElement("h3");
-            title.className = "card-title";
-            const titleButton = document.createElement("button");
-            titleButton.type = "button";
-            titleButton.className = "card-open";
-            titleButton.textContent = art.title || "Sem título";
-            titleButton.addEventListener("click", () => openDetail(art));
-            title.appendChild(titleButton);
-
-            const artist = document.createElement("p");
-            artist.className = "card-artist";
-            artist.textContent = art.artist || "Artista desconhecido";
-
-            const meta = document.createElement("div");
-            meta.className = "card-meta";
-            const year = document.createElement("span");
-            year.textContent = art.year || "";
-            const museum = document.createElement("span");
-            museum.textContent = art.museum || "";
-            meta.append(year, museum);
-
-            card.append(wrapper, title, artist, meta);
-
-            // Alguns museus (Louvre) exigem crédito da foto e link para a ficha da obra.
-            if (art.credit) {
-                const credit = document.createElement("p");
-                credit.className = "card-credit";
-                credit.textContent = art.credit;
-                card.append(credit);
-            }
-            if (typeof art.url === "string" && art.url.startsWith("https://")) {
-                const link = document.createElement("a");
-                link.className = "card-link";
-                link.href = art.url;
-                link.target = "_blank";
-                link.rel = "noopener noreferrer";
-                link.textContent = "Ver no site do museu";
-                card.append(link);
-            }
-            const saved = collection[art.id];
-            if (saved && saved.note) {
-                const note = document.createElement("p");
-                note.className = "card-note";
-                note.textContent = saved.note.length > 140 ? saved.note.slice(0, 140) + "…" : saved.note;
-                card.append(note);
-            }
-            return card;
-        }
-
-        function failedMuseumsText(museums) {
-            const failed = Object.entries(museums || {}).filter(([, info]) => info && info.error);
-            if (failed.length === 0) return "";
-            const list = failed
-                .map(([key, info]) => `${MUSEUM_NAMES[key] || key} (${info.error})`)
-                .join("; ");
-            return `Sem resposta de: ${list}.`;
-        }
-
-        // ------------------------------------------------------------------
-        // Coleção (salva no navegador)
-        // ------------------------------------------------------------------
-        const STORE_KEY = "artlog-collection";
-        const countEl = document.getElementById("collection-count");
-        let collection = {};
-        try { collection = JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch (_) { collection = {}; }
-        if (typeof collection !== "object" || Array.isArray(collection)) collection = {};
-
-        function persist() {
-            try { localStorage.setItem(STORE_KEY, JSON.stringify(collection)); }
-            catch (_) { showStatus("Não foi possível salvar neste navegador (armazenamento bloqueado ou cheio)."); }
-        }
-        function updateCount() { countEl.textContent = String(Object.keys(collection).length); }
-        function isSaved(id) { return Object.prototype.hasOwnProperty.call(collection, id); }
-
-        function paintFav(button, saved) {
-            button.setAttribute("aria-pressed", String(saved));
-            button.textContent = saved ? "♥" : "♡";
-            button.setAttribute("aria-label", saved ? "Remover da coleção" : "Salvar na coleção");
-        }
-        function syncFavButtons() {
-            document.querySelectorAll(".fav").forEach((b) => paintFav(b, isSaved(b.dataset.id)));
-        }
-        function toggleSaved(art) {
-            if (isSaved(art.id)) delete collection[art.id];
-            else collection[art.id] = { art, note: "", seen: "", savedAt: Date.now() };
-            persist();
-            updateCount();
-            if (view === "collection") renderCollection(); else syncFavButtons();
-        }
-        function createFavButton(art) {
-            const button = document.createElement("button");
-            button.type = "button";
-            button.className = "fav";
-            button.dataset.id = art.id;
-            paintFav(button, isSaved(art.id));
-            button.addEventListener("click", (event) => {
-                event.stopPropagation();
-                toggleSaved(art);
-                if (openArt && openArt.id === art.id) refreshDetail();
-            });
-            return button;
-        }
-
-        // ------------------------------------------------------------------
-        // Detalhes da obra
-        // ------------------------------------------------------------------
-        const detail = document.getElementById("detail");
-        const detailNote = document.getElementById("detail-note");
-        const detailSeen = document.getElementById("detail-seen");
-        const detailSave = document.getElementById("detail-save");
-        const detailLink = document.getElementById("detail-link");
-        let openArt = null;
-
-        function refreshDetail() {
-            const saved = isSaved(openArt.id);
-            detailSave.textContent = saved ? "Remover da coleção" : "Salvar na coleção";
-            detailNote.disabled = detailSeen.disabled = !saved;
-            detailNote.placeholder = saved ? "Suas anotações sobre esta obra" : "Salve a obra para escrever notas";
-            detailNote.value = saved ? collection[openArt.id].note : "";
-            detailSeen.value = saved ? collection[openArt.id].seen : "";
-            refreshDetailTop();
-        }
-        function openDetail(art) {
-            openArt = art;
-            const img = document.getElementById("detail-img");
-            img.referrerPolicy = "no-referrer";
-            img.alt = art.title || "Obra sem título";
-            img.src = art.image || PLACEHOLDER;
-            document.getElementById("detail-title").textContent = art.title || "Sem título";
-            document.getElementById("detail-artist").textContent = art.artist || "";
-            document.getElementById("detail-meta").textContent = [art.year, art.museum].filter(Boolean).join(" · ");
-            document.getElementById("detail-credit").textContent = art.credit || "";
-            const ok = typeof art.url === "string" && art.url.startsWith("https://");
-            detailLink.hidden = !ok;
-            if (ok) detailLink.href = art.url;
-            refreshDetail();
-            detail.showModal();
-        }
-        detailSave.addEventListener("click", () => { toggleSaved(openArt); refreshDetail(); });
-        detailNote.addEventListener("input", () => {
-            if (isSaved(openArt.id)) { collection[openArt.id].note = detailNote.value; persist(); }
-        });
-        detailSeen.addEventListener("change", () => {
-            if (isSaved(openArt.id)) { collection[openArt.id].seen = detailSeen.value; persist(); }
-        });
-        document.getElementById("detail-close").addEventListener("click", () => detail.close());
-        detail.addEventListener("click", (event) => { if (event.target === detail) detail.close(); });
-        detail.addEventListener("close", () => {
-            openArt = null;
-            if (view === "collection") renderCollection();  // mostra a nota atualizada
-        });
-
-        // ------------------------------------------------------------------
-        // Exportar / importar
-        // ------------------------------------------------------------------
-        function download(name, text, type) {
-            const link = document.createElement("a");
-            link.href = URL.createObjectURL(new Blob([text], { type }));
-            link.download = name;
-            document.body.append(link);
-            link.click();
-            link.remove();
-            setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-        }
-        function csvCell(value) {
-            let text = String(value ?? "");
-            if (/^[=+\-@]/.test(text)) text = "'" + text;  // evita fórmulas no Excel
-            return `"${text.replace(/"/g, '""')}"`;
-        }
-        document.getElementById("export-json").addEventListener("click", () => {
-            download("artlog-colecao.json", JSON.stringify(collection, null, 2), "application/json");
-        });
-        document.getElementById("export-csv").addEventListener("click", () => {
-            const rows = [["id", "titulo", "artista", "ano", "museu", "link", "visto_em", "nota"]];
-            Object.values(collection).forEach(({ art, seen, note }) =>
-                rows.push([art.id, art.title, art.artist, art.year, art.museum, art.url, seen, note]));
-            download("artlog-colecao.csv", "\ufeff" + rows.map((r) => r.map(csvCell).join(",")).join("\n"), "text/csv");
-        });
-        const importFile = document.getElementById("import-file");
-        document.getElementById("import-json").addEventListener("click", () => importFile.click());
-        importFile.addEventListener("change", async () => {
-            const file = importFile.files[0];
-            importFile.value = "";
-            if (!file) return;
-            try {
-                const data = JSON.parse(await file.text());
-                if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("formato inválido");
-                const str = (v, max = 300) => (typeof v === "string" ? v.slice(0, max) : "");
-                let added = 0;
-                for (const entry of Object.values(data)) {
-                    const a = entry && entry.art;
-                    if (!a || typeof a.id !== "string" || isSaved(a.id)) continue;
-                    const image = str(a.image, 1000);
-                    if (!(image.startsWith("https://") || image.startsWith("/artic-image/"))) continue;
-                    collection[a.id] = {
-                        art: { id: a.id, title: str(a.title), artist: str(a.artist), year: str(a.year),
-                               museum: str(a.museum), image, url: str(a.url, 1000) || null, credit: str(a.credit) || null },
-                        note: str(entry.note, 2000),
-                        seen: /^\d{4}-\d{2}-\d{2}$/.test(entry.seen) ? entry.seen : "",
-                        savedAt: Number.isFinite(entry.savedAt) ? entry.savedAt : Date.now(),
-                    };
-                    added++;
-                }
-                persist(); updateCount(); renderCollection();
-                showStatus(`${added} ${added === 1 ? "obra importada" : "obras importadas"}.`);
-            } catch (err) {
-                showStatus(`Não foi possível importar o arquivo (${err.message}).`);
-            }
-        });
-
-        // ------------------------------------------------------------------
-        // Abas: Explorar / Minha coleção
-        // ------------------------------------------------------------------
-        const tabSearch = document.getElementById("tab-search");
-        const tabCollection = document.getElementById("tab-collection");
-        const toolsBox = document.getElementById("collection-tools");
-        const moreButton = document.getElementById("btn-more");
-        const randomButton = document.getElementById("btn-random");
-        const INITIAL_STATUS = statusBox.textContent;
-        let view = "search";
-        let results = [];      // obras mostradas na aba Explorar
-        let lastQuery = "";
-        let lastNote = "";
-        let canMore = false;
-
-        function renderCollection() {
-            const items = Object.values(collection).sort((a, b) => b.savedAt - a.savedAt);
-            grid.replaceChildren(...items.map((item) => createCard(item.art)));
-            showMuseumNote("");
-            showStatus(items.length
-                ? `${items.length} ${items.length === 1 ? "obra salva" : "obras salvas"}:`
-                : "Sua coleção está vazia. Toque no ♡ de uma obra para salvá-la.");
-        }
-        function setView(next) {
-            view = next;
-            tabSearch.setAttribute("aria-pressed", String(next === "search"));
-            tabCollection.setAttribute("aria-pressed", String(next === "collection"));
-            tabProfile.setAttribute("aria-pressed", String(next === "profile"));
-            form.hidden = next !== "search";
-            toolsBox.hidden = next !== "collection";
-            // O perfil ocupa a página inteira: esconde a grade, o status e o "carregar mais".
-            const onProfile = next === "profile";
-            profileView.hidden = !onProfile;
-            grid.hidden = statusBox.hidden = onProfile;
-            if (onProfile) {
-                moreButton.hidden = true;
-                showMuseumNote("");
-                renderProfile();
-                return;
-            }
-            if (next === "collection") {
-                moreButton.hidden = true;
-                renderCollection();
-                return;
-            }
-            grid.replaceChildren(...results.map(createCard));
-            showStatus(results.length ? `${results.length} ${results.length === 1 ? "obra" : "obras"} para “${lastQuery}”:` : INITIAL_STATUS);
-            showMuseumNote(lastNote);
-            moreButton.hidden = !canMore;
-        }
-        tabSearch.addEventListener("click", () => setView("search"));
-        tabCollection.addEventListener("click", () => setView("collection"));
-        const tabProfile = document.getElementById("tab-profile");
-        const profileView = document.getElementById("profile-view");
-        tabProfile.addEventListener("click", () => setView("profile"));
-
-        // ------------------------------------------------------------------
-        // Busca
-        // ------------------------------------------------------------------
-        const STEP = 3;
-        const MAX_LIMIT = 12;
-        let limit = STEP;
-        let controller = null;
-        let sequence = 0;
-
-        async function readError(res) {
-            try {
-                const body = await res.json();
-                if (typeof body.detail === "string") return body.detail;
-            } catch (_) { /* corpo sem JSON */ }
-            return `erro ${res.status}`;
-        }
-
-        function renderResults(data, query, more) {
-            const incoming = Array.isArray(data.artworks) ? data.artworks : [];
-            if (!more) {
-                results = [];
-                grid.replaceChildren();
-            }
-            // Só "carregar mais" descarta o que já está na tela; uma busca nova mostra tudo.
-            const fresh = incoming.filter((art) => !results.some((r) => r.id === art.id));
-            const totalMuseums = Object.keys(data.museums || {}).length;
-            const failedCount = Object.values(data.museums || {}).filter((m) => m && m.error).length;
-            lastNote = failedMuseumsText(data.museums);
-            showMuseumNote(lastNote);
-
-            results.push(...fresh);
-            grid.append(...fresh.map(createCard));
-            canMore = fresh.length > 0 && limit < MAX_LIMIT;
-
-            if (results.length === 0) {
-                showStatus(totalMuseums > 0 && failedCount === totalMuseums
-                    ? "Nenhum museu respondeu agora. Tente novamente em instantes."
-                    : `Nenhum resultado para “${query}”. Tente termos em inglês (ex: Monet, Picasso).`);
-            } else if (more && fresh.length === 0) {
-                showStatus(`Não há mais obras para “${query}”.`);
-            } else {
-                showStatus(`${results.length} ${results.length === 1 ? "obra" : "obras"} para “${query}”:`);
-            }
-            moreButton.hidden = !canMore;
-        }
-
-        async function runSearch(query, museum, more = false) {
-            const mySequence = ++sequence;
-            if (controller) controller.abort(); // descarta a busca anterior ainda em andamento
-            const current = new AbortController();
-            controller = current;
-            const timer = setTimeout(() => current.abort(), REQUEST_TIMEOUT_MS);
-
-            lastQuery = query;
-            limit = more ? Math.min(limit + STEP, MAX_LIMIT) : STEP;
-            setLoading(true);
-            moreButton.disabled = true;
-            if (!more) {
-                grid.replaceChildren();
-                moreButton.hidden = true;
-                showMuseumNote("");
-            }
-            showStatus("Buscando nos acervos...");
-
-            try {
-                const params = new URLSearchParams({ q: query, museum, limit_per_museum: String(limit) });
-                const res = await fetch(`/search?${params}`, { signal: current.signal });
-                if (!res.ok) throw new Error(await readError(res));
-                const data = await res.json();
-                if (mySequence !== sequence) return; // chegou uma busca mais nova
-                renderResults(data, query, more);
-            } catch (err) {
-                if (mySequence !== sequence) return;
-                console.error("Erro na busca:", err);
-                showStatus(err.name === "AbortError"
-                    ? "A busca demorou demais. Tente novamente."
-                    : `Não foi possível buscar agora (${err.message}).`);
-                moreButton.hidden = !canMore;
-            } finally {
-                clearTimeout(timer);
-                if (mySequence === sequence) { setLoading(false); moreButton.disabled = false; }
-            }
-        }
-
-        form.addEventListener("submit", (event) => {
-            event.preventDefault();
-            const query = queryInput.value.trim();
-            if (!query) {
-                showStatus("Escreva algo para pesquisar.");
-                queryInput.focus();
-                return;
-            }
-            runSearch(query, museumSelect.value);
-        });
-
-        moreButton.addEventListener("click", () => runSearch(lastQuery, museumSelect.value, true));
-
-        // Termos amplos, em inglês (é o que os acervos entendem melhor).
-        const DISCOVER_TERMS = [
-            "impressionism", "still life", "portrait", "landscape", "sunflowers", "japanese woodblock",
-            "armor", "sculpture", "porcelain", "ancient egypt", "self-portrait", "seascape", "textile",
-            "horse", "mythology", "winter", "garden", "ukiyo-e",
-        ];
-        randomButton.addEventListener("click", () => {
-            let term;
-            do { term = DISCOVER_TERMS[Math.floor(Math.random() * DISCOVER_TERMS.length)]; }
-            while (term === lastQuery && DISCOVER_TERMS.length > 1);
-            queryInput.value = term;
-            museumSelect.value = "all";
-            runSearch(term, "all");
-        });
-
-        // ------------------------------------------------------------------
-        // Conta: entrar, criar conta, sair
-        // A sessão fica num cookie HttpOnly que o servidor cria; aqui só
-        // perguntamos ao servidor quem está logado (/auth/me).
-        // ------------------------------------------------------------------
-        const authDialog = document.getElementById("auth");
-        const authTitle = document.getElementById("auth-title");
-        const authTabLogin = document.getElementById("auth-tab-login");
-        const authTabRegister = document.getElementById("auth-tab-register");
-        const loginForm = document.getElementById("login-form");
-        const registerForm = document.getElementById("register-form");
-        const loginButton = document.getElementById("btn-login");
-        const logoutButton = document.getElementById("btn-logout");
-        const accountUser = document.getElementById("account-user");
-        const regPassword = document.getElementById("reg-password");
-        let currentUser = null;
-
-        function renderAccount() {
-            const loggedIn = Boolean(currentUser);
-            document.getElementById("account").classList.remove("is-loading");
-            loginButton.hidden = loggedIn;
-            accountUser.hidden = logoutButton.hidden = tabProfile.hidden = !loggedIn;
-            document.getElementById("account-name").textContent = loggedIn ? `@${currentUser.username}` : "";
-            if (loggedIn) paintAvatar(document.getElementById("account-avatar"), currentUser);
-        }
-
-        function setAuthMode(mode) {
-            const isLogin = mode === "login";
-            authTitle.textContent = isLogin ? "Que bom ver você de novo" : "Comece seu diário de arte";
-            authTabLogin.setAttribute("aria-pressed", String(isLogin));
-            authTabRegister.setAttribute("aria-pressed", String(!isLogin));
-            loginForm.hidden = !isLogin;
-            registerForm.hidden = isLogin;
-            authDialog.querySelectorAll(".auth-error").forEach((p) => { p.textContent = ""; });
-            const first = (isLogin ? loginForm : registerForm).querySelector("input");
-            if (authDialog.open) first.focus();
-        }
-
-        function openAuth(mode = "login") {
-            setAuthMode(mode);
-            authDialog.showModal();
-            (mode === "login" ? loginForm : registerForm).querySelector("input").focus();
-        }
-
-        async function sendAuth(url, payload, form) {
-            const errorBox = form.querySelector(".auth-error");
-            const submit = form.querySelector('button[type="submit"]');
-            errorBox.textContent = "";
-            submit.disabled = true;
-            try {
-                const res = await fetch(url, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload),
-                });
-                if (!res.ok) {
-                    // O servidor manda mensagens prontas em português; sem mensagem, um texto genérico.
-                    const message = await readError(res);
-                    errorBox.textContent = message.startsWith("erro ")
-                        ? "Não foi possível continuar. Confira os campos e tente de novo."
-                        : message;
-                    return null;
-                }
-                return (await res.json()).user;
-            } catch (_) {
-                errorBox.textContent = "Sem conexão com o servidor. Tente de novo.";
-                return null;
-            } finally {
-                submit.disabled = false;
-            }
-        }
-
-        function signedIn(user, message) {
-            currentUser = user;
-            renderAccount();
-            loginForm.reset();
-            registerForm.reset();
-            regPassword.type = "password";
-            authDialog.close();
-            showStatus(message);
-            loadTop5();
-        }
-
-        loginForm.addEventListener("submit", async (event) => {
-            event.preventDefault();
-            const user = await sendAuth("/auth/login", {
-                login: loginForm.login.value.trim(),
-                password: loginForm.password.value,
-            }, loginForm);
-            if (user) signedIn(user, `Bem-vindo(a) de volta, @${user.username}.`);
-            else loginForm.password.select();
-        });
-
-        registerForm.addEventListener("submit", async (event) => {
-            event.preventDefault();
-            const user = await sendAuth("/auth/register", {
-                username: registerForm.username.value.trim(),
-                email: registerForm.email.value.trim(),
-                password: registerForm.password.value,
-            }, registerForm);
-            if (user) signedIn(user, `Conta criada. Bem-vindo(a) ao artlog, @${user.username}!`);
-        });
-
-        document.getElementById("reg-show").addEventListener("change", (event) => {
-            regPassword.type = event.target.checked ? "text" : "password";
-        });
-        authTabLogin.addEventListener("click", () => setAuthMode("login"));
-        authTabRegister.addEventListener("click", () => setAuthMode("register"));
-        loginButton.addEventListener("click", () => openAuth("login"));
-        document.getElementById("auth-close").addEventListener("click", () => authDialog.close());
-        authDialog.addEventListener("click", (event) => { if (event.target === authDialog) authDialog.close(); });
-
-        logoutButton.addEventListener("click", async () => {
-            try { await fetch("/auth/logout", { method: "POST" }); } catch (_) { /* sai localmente mesmo assim */ }
-            currentUser = null;
-            top5 = [];
-            renderAccount();
-            if (view === "profile") setView("search");
-            showStatus("Você saiu da sua conta.");
-        });
-
-        async function loadCurrentUser() {
-            try {
-                const res = await fetch("/auth/me");
-                if (res.ok) currentUser = (await res.json()).user;
-            } catch (_) { currentUser = null; }
-            renderAccount();
-            if (currentUser) loadTop5();
-        }
-
-        // ------------------------------------------------------------------
-        // Perfil: foto, dados, senha
-        // ------------------------------------------------------------------
-        const profileMsg = document.getElementById("profile-msg");
-        const editDialog = document.getElementById("profile-edit");
-        const profileForm = document.getElementById("profile-form");
-        const passwordForm = document.getElementById("password-form");
-        const bioInput = document.getElementById("pf-bio");
-        const bioCount = document.getElementById("pf-bio-count");
-        const avatarFile = document.getElementById("avatar-file");
-        const avatarMsg = document.getElementById("avatar-msg");
-        const avatarRemove = document.getElementById("btn-avatar-remove");
-
-        // Foto redonda; sem foto, mostra a inicial do nome.
-        function paintAvatar(el, user) {
-            el.replaceChildren();
-            if (user.avatar_url) {
-                const img = document.createElement("img");
-                img.src = user.avatar_url;
-                img.alt = "";
-                el.append(img);
-            } else {
-                el.textContent = (user.display_name || user.username || "?").trim().charAt(0).toUpperCase();
-            }
-        }
-
-        function renderProfile() {
-            if (!currentUser) return;
-            paintAvatar(document.getElementById("profile-avatar"), currentUser);
-            document.getElementById("profile-name").textContent = currentUser.display_name || `@${currentUser.username}`;
-            const handle = document.getElementById("profile-handle");
-            handle.textContent = `@${currentUser.username}`;
-            handle.hidden = !currentUser.display_name;
-            const bio = document.getElementById("profile-bio");
-            bio.textContent = currentUser.bio || "";
-            bio.hidden = !currentUser.bio;
-            renderTop5();
-        }
-
-        function updateUser(user) {
-            currentUser = user;
-            renderAccount();
-            if (view === "profile") renderProfile();
-            paintAvatar(document.getElementById("edit-avatar"), user);
-            avatarRemove.hidden = !user.avatar_url;
-        }
-
-        // fetch com JSON e mensagens de erro em português.
-        async function api(method, url, body, headers) {
-            const options = { method, headers: headers || {} };
-            if (body !== undefined) {
-                if (body instanceof Blob) options.body = body;
-                else {
-                    options.body = JSON.stringify(body);
-                    options.headers["Content-Type"] = "application/json";
-                }
-            }
-            let res;
-            try { res = await fetch(url, options); }
-            catch (_) { throw new Error("Sem conexão com o servidor. Tente de novo."); }
-            if (res.status === 401) {
-                currentUser = null;
-                renderAccount();
-                throw new Error("Sua sessão terminou. Entre de novo.");
-            }
-            if (!res.ok) {
-                const message = await readError(res);
-                throw new Error(message.startsWith("erro ") ? "Não foi possível salvar. Tente de novo." : message);
-            }
-            return res.status === 204 ? null : res.json();
-        }
-
-        function openEdit() {
-            profileForm.display_name.value = currentUser.display_name || "";
-            profileForm.username.value = currentUser.username;
-            profileForm.email.value = currentUser.email;
-            bioInput.value = currentUser.bio || "";
-            bioCount.textContent = `${bioInput.value.length}/300`;
-            passwordForm.reset();
-            passwordForm.username.value = currentUser.username;
-            editDialog.querySelectorAll(".auth-error, .auth-ok").forEach((p) => { p.textContent = ""; });
-            paintAvatar(document.getElementById("edit-avatar"), currentUser);
-            avatarRemove.hidden = !currentUser.avatar_url;
-            editDialog.showModal();
-        }
-
-        bioInput.addEventListener("input", () => { bioCount.textContent = `${bioInput.value.length}/300`; });
-        document.getElementById("btn-edit-profile").addEventListener("click", openEdit);
-        accountUser.addEventListener("click", () => setView("profile"));
-        document.getElementById("profile-edit-close").addEventListener("click", () => editDialog.close());
-        editDialog.addEventListener("click", (event) => { if (event.target === editDialog) editDialog.close(); });
-
-        profileForm.addEventListener("submit", async (event) => {
-            event.preventDefault();
-            const errorBox = profileForm.querySelector(".auth-error");
-            const submit = profileForm.querySelector('button[type="submit"]');
-            errorBox.textContent = "";
-            submit.disabled = true;
-            try {
-                const data = await api("PATCH", "/profile", {
-                    display_name: profileForm.display_name.value,
-                    username: profileForm.username.value.trim(),
-                    email: profileForm.email.value.trim(),
-                    bio: bioInput.value,
-                });
-                updateUser(data.user);
-                editDialog.close();
-                profileMsg.textContent = "Perfil salvo.";
-            } catch (err) {
-                errorBox.textContent = err.message;
-            } finally {
-                submit.disabled = false;
-            }
-        });
-
-        passwordForm.addEventListener("submit", async (event) => {
-            event.preventDefault();
-            const errorBox = passwordForm.querySelector(".auth-error");
-            const okBox = passwordForm.querySelector(".auth-ok");
-            const submit = passwordForm.querySelector('button[type="submit"]');
-            errorBox.textContent = okBox.textContent = "";
-            submit.disabled = true;
-            try {
-                await api("POST", "/profile/password", {
-                    current_password: passwordForm.current_password.value,
-                    new_password: passwordForm.new_password.value,
-                });
-                passwordForm.current_password.value = passwordForm.new_password.value = "";
-                okBox.textContent = "Senha alterada.";
-            } catch (err) {
-                errorBox.textContent = err.message;
-            } finally {
-                submit.disabled = false;
-            }
-        });
-
-        // A foto é cortada em quadrado e reduzida para 400x400 aqui no navegador:
-        // o envio fica leve e os dados escondidos da foto (como a localização GPS) não vão junto.
-        async function squareJpeg(file, size = 400) {
-            let source;
-            try { source = await createImageBitmap(file); }
-            catch (_) { throw new Error("Não consegui abrir essa imagem. Use uma foto JPG ou PNG."); }
-            const side = Math.min(source.width, source.height);
-            const canvas = document.createElement("canvas");
-            canvas.width = canvas.height = size;
-            const ctx = canvas.getContext("2d");
-            ctx.fillStyle = "#ffffff";  // fundo branco para PNG com transparência
-            ctx.fillRect(0, 0, size, size);
-            ctx.drawImage(source, (source.width - side) / 2, (source.height - side) / 2, side, side, 0, 0, size, size);
-            if (source.close) source.close();
-            const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.88));
-            if (!blob) throw new Error("Não consegui processar essa imagem.");
-            return blob;
-        }
-
-        document.getElementById("btn-avatar-pick").addEventListener("click", () => avatarFile.click());
-        avatarFile.addEventListener("change", async () => {
-            const file = avatarFile.files[0];
-            avatarFile.value = "";
-            if (!file) return;
-            avatarMsg.textContent = "";
-            try {
-                const blob = await squareJpeg(file);
-                const data = await api("PUT", "/profile/avatar", blob, { "Content-Type": "image/jpeg" });
-                updateUser(data.user);
-                profileMsg.textContent = "Foto atualizada.";
-            } catch (err) {
-                avatarMsg.textContent = err.message;
-            }
-        });
-        avatarRemove.addEventListener("click", async () => {
-            avatarMsg.textContent = "";
-            try {
-                const data = await api("DELETE", "/profile/avatar");
-                updateUser(data.user);
-                profileMsg.textContent = "Foto removida.";
-            } catch (err) {
-                avatarMsg.textContent = err.message;
-            }
-        });
-
-        // ------------------------------------------------------------------
-        // Top 5 (salvo na conta, no servidor)
-        // ------------------------------------------------------------------
-        const TOP_SIZE = 5;
-        const top5List = document.getElementById("top5-list");
-        const picker = document.getElementById("top-picker");
-        const pickerList = document.getElementById("top-picker-list");
-        const pickerEmpty = document.getElementById("top-picker-empty");
-        const detailTop = document.getElementById("detail-top");
-        let top5 = [];
-
-        function inTop(id) { return top5.some((art) => art.id === id); }
-
-        async function loadTop5() {
-            try {
-                const data = await api("GET", "/profile");
-                top5 = data.top5 || [];
-                if (data.user) currentUser = data.user;
-                if (view === "profile") renderProfile();
-            } catch (_) { /* sem login ou sem conexão: o Top 5 fica vazio */ }
-        }
-
-        // Salva a lista inteira. Mostra a mudança na hora e desfaz se o servidor recusar.
-        async function saveTop5(next, message) {
-            const previous = top5;
-            top5 = next;
-            renderTop5();
-            if (openArt) refreshDetailTop();
-            try {
-                await api("PUT", "/profile/top5", { artworks: next });
-                profileMsg.textContent = message || "";
-            } catch (err) {
-                top5 = previous;
-                renderTop5();
-                if (openArt) refreshDetailTop();
-                profileMsg.textContent = err.message;
-                if (view !== "profile") showStatus(err.message);
-            }
-        }
-
-        function addToTop(art) {
-            if (inTop(art.id) || top5.length >= TOP_SIZE) return;
-            const clean = {
-                id: art.id, title: art.title || "", artist: art.artist || "", year: art.year || "",
-                museum: art.museum || "", image: art.image || "", url: art.url || null, credit: art.credit || null,
-            };
-            saveTop5([...top5, clean], `“${clean.title || "Obra"}” entrou no seu Top 5.`);
-        }
-        function removeFromTop(id) {
-            saveTop5(top5.filter((art) => art.id !== id), "Obra removida do Top 5.");
-        }
-        function moveInTop(index, delta) {
-            const next = [...top5];
-            const target = index + delta;
-            if (target < 0 || target >= next.length) return;
-            [next[index], next[target]] = [next[target], next[index]];
-            saveTop5(next, "Ordem atualizada.");
-            // Mantém o foco no mesmo botão de seta depois de redesenhar.
-            requestAnimationFrame(() => {
-                const slot = top5List.children[target];
-                const button = slot && slot.querySelector(delta < 0 ? ".top-left" : ".top-right");
-                (button && !button.disabled ? button : slot && slot.querySelector(".top-art"))?.focus();
-            });
-        }
-
-        function iconButton(className, label, text, onClick, disabled = false) {
-            const button = document.createElement("button");
-            button.type = "button";
-            button.className = className;
-            button.setAttribute("aria-label", label);
-            button.title = label;
-            button.textContent = text;
-            button.disabled = disabled;
-            button.addEventListener("click", onClick);
-            return button;
-        }
-
-        function renderTop5() {
-            const slots = [];
-            for (let i = 0; i < TOP_SIZE; i++) {
-                const art = top5[i];
-                const li = document.createElement("li");
-                li.className = art ? "top-slot" : "top-slot is-empty";
-                const rank = document.createElement("span");
-                rank.className = "top-rank";
-                rank.textContent = String(i + 1);
-                rank.setAttribute("aria-hidden", "true");
-
-                if (!art) {
-                    const add = document.createElement("button");
-                    add.type = "button";
-                    add.className = "top-add";
-                    add.innerHTML = '<span aria-hidden="true">+</span>';
-                    add.setAttribute("aria-label", `Escolher a obra número ${i + 1}`);
-                    add.addEventListener("click", openPicker);
-                    li.append(rank, add);
-                    slots.push(li);
-                    continue;
-                }
-
-                const open = document.createElement("button");
-                open.type = "button";
-                open.className = "top-art";
-                open.setAttribute("aria-label", `${i + 1}º: ${art.title || "Sem título"}, ${art.artist || ""}`);
-                const img = document.createElement("img");
-                img.src = art.image || PLACEHOLDER;
-                img.alt = "";
-                img.loading = "lazy";
-                img.referrerPolicy = "no-referrer";
-                img.addEventListener("error", () => { img.src = PLACEHOLDER; }, { once: true });
-                open.append(img);
-                open.addEventListener("click", () => openDetail(art));
-
-                const title = document.createElement("p");
-                title.className = "top-title";
-                title.textContent = art.title || "Sem título";
-                const artist = document.createElement("p");
-                artist.className = "top-artist";
-                artist.textContent = art.artist || "";
-
-                const controls = document.createElement("div");
-                controls.className = "top-controls";
-                controls.append(
-                    iconButton("top-left", "Subir uma posição", "←", () => moveInTop(i, -1), i === 0),
-                    iconButton("top-right", "Descer uma posição", "→", () => moveInTop(i, 1), i === top5.length - 1),
-                    iconButton("top-remove", "Remover do Top 5", "×", () => removeFromTop(art.id)),
-                );
-                li.append(rank, open, title, artist, controls);
-                slots.push(li);
-            }
-            top5List.replaceChildren(...slots);
-        }
-
-        function openPicker() {
-            const items = Object.values(collection)
-                .sort((a, b) => b.savedAt - a.savedAt)
-                .filter((item) => !inTop(item.art.id));
-            pickerEmpty.hidden = items.length > 0;
-            pickerEmpty.textContent = Object.keys(collection).length && !items.length
-                ? "Todas as obras da sua coleção já estão no Top 5."
-                : "Sua coleção está vazia. Salve obras com ♡ na aba Explorar para escolher aqui.";
-            pickerList.replaceChildren(...items.map(({ art }) => {
-                const li = document.createElement("li");
-                const button = document.createElement("button");
-                button.type = "button";
-                button.className = "picker-item";
-                const img = document.createElement("img");
-                img.src = art.image || PLACEHOLDER;
-                img.alt = "";
-                img.loading = "lazy";
-                img.referrerPolicy = "no-referrer";
-                img.addEventListener("error", () => { img.src = PLACEHOLDER; }, { once: true });
-                const text = document.createElement("span");
-                const title = document.createElement("strong");
-                title.textContent = art.title || "Sem título";
-                const artist = document.createElement("span");
-                artist.textContent = art.artist || "";
-                text.append(title, artist);
-                button.append(img, text);
-                button.addEventListener("click", () => { picker.close(); addToTop(art); });
-                li.append(button);
-                return li;
-            }));
-            picker.showModal();
-        }
-        document.getElementById("top-picker-close").addEventListener("click", () => picker.close());
-        picker.addEventListener("click", (event) => { if (event.target === picker) picker.close(); });
-
-        // Botão "Adicionar ao Top 5" na janela de detalhes da obra.
-        function refreshDetailTop() {
-            if (!openArt || !currentUser) { detailTop.hidden = true; return; }
-            detailTop.hidden = false;
-            const already = inTop(openArt.id);
-            const full = !already && top5.length >= TOP_SIZE;
-            detailTop.textContent = already ? "Remover do Top 5" : full ? "Top 5 cheio" : "Adicionar ao Top 5";
-            detailTop.disabled = full;
-            detailTop.title = full ? "Remova uma obra no seu perfil para abrir espaço." : "";
-        }
-        detailTop.addEventListener("click", () => {
-            if (!openArt) return;
-            if (inTop(openArt.id)) removeFromTop(openArt.id); else addToTop(openArt);
-        });
-
-        loadCurrentUser();
-        updateCount();
-    })();
-    </script>
+    <script src="/app.js" defer></script>
 </body>
 </html>
