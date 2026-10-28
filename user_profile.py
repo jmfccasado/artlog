@@ -13,13 +13,13 @@ from __future__ import annotations
 
 import json
 import re
-import sqlite3
 import time
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 
+from db import Database, IntegrityError, Row
 from auth import (
     EMAIL_RE,
     PASSWORD_MAX,
@@ -52,11 +52,11 @@ def _clean(text: str, *, multiline: bool = False) -> str:
     return text.strip()
 
 
-def _user_row(db: sqlite3.Connection, user_id: int) -> sqlite3.Row:
+def _user_row(db: Database, user_id: int) -> Row:
     return db.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
 
 
-def _top5(db: sqlite3.Connection, user_id: int) -> list[dict[str, Any]]:
+def _top5(db: Database, user_id: int) -> list[dict[str, Any]]:
     rows = db.execute(
         "SELECT artwork FROM top_artworks WHERE user_id = ? ORDER BY position", (user_id,)
     ).fetchall()
@@ -67,7 +67,7 @@ def _top5(db: sqlite3.Connection, user_id: int) -> list[dict[str, Any]]:
 # Perfil
 # ---------------------------------------------------------------------------
 @router.get("/profile")
-def get_profile(user: dict = Depends(current_user), db: sqlite3.Connection = Depends(get_db)) -> dict[str, Any]:
+def get_profile(user: dict = Depends(current_user), db: Database = Depends(get_db)) -> dict[str, Any]:
     return {"user": user, "top5": _top5(db, user["id"])}
 
 
@@ -81,7 +81,7 @@ class ProfileIn(BaseModel):
 
 @router.patch("/profile")
 def update_profile(
-    data: ProfileIn, user: dict = Depends(current_user), db: sqlite3.Connection = Depends(get_db)
+    data: ProfileIn, user: dict = Depends(current_user), db: Database = Depends(get_db)
 ) -> dict[str, Any]:
     changes: dict[str, str] = {}
 
@@ -122,7 +122,7 @@ def update_profile(
         try:
             with db:
                 db.execute(f"UPDATE users SET {assignments} WHERE id = ?", (*changes.values(), user["id"]))
-        except sqlite3.IntegrityError:
+        except IntegrityError:
             raise HTTPException(409, "Esse nome de usuário ou e-mail acabou de ser usado. Tente outro.") from None
 
     return {"user": public_user(_user_row(db, user["id"]))}
@@ -138,7 +138,7 @@ def change_password(
     data: PasswordIn,
     request: Request,
     user: dict = Depends(current_user),
-    db: sqlite3.Connection = Depends(get_db),
+    db: Database = Depends(get_db),
 ) -> dict[str, Any]:
     row = _user_row(db, user["id"])
     if not verify_password(data.current_password, row["password_hash"]):
@@ -173,7 +173,7 @@ def _image_type(data: bytes) -> str | None:
 
 @router.put("/profile/avatar")
 async def upload_avatar(
-    request: Request, user: dict = Depends(current_user), db: sqlite3.Connection = Depends(get_db)
+    request: Request, user: dict = Depends(current_user), db: Database = Depends(get_db)
 ) -> dict[str, Any]:
     declared = request.headers.get("content-length")
     if declared and declared.isdigit() and int(declared) > AVATAR_MAX_BYTES:
@@ -202,7 +202,7 @@ async def upload_avatar(
 
 
 @router.delete("/profile/avatar")
-def delete_avatar(user: dict = Depends(current_user), db: sqlite3.Connection = Depends(get_db)) -> dict[str, Any]:
+def delete_avatar(user: dict = Depends(current_user), db: Database = Depends(get_db)) -> dict[str, Any]:
     with db:
         db.execute("DELETE FROM avatars WHERE user_id = ?", (user["id"],))
         db.execute("UPDATE users SET avatar_version = NULL WHERE id = ?", (user["id"],))
@@ -210,12 +210,12 @@ def delete_avatar(user: dict = Depends(current_user), db: sqlite3.Connection = D
 
 
 @router.get("/avatars/{user_id}", include_in_schema=False)
-def get_avatar(user_id: int, db: sqlite3.Connection = Depends(get_db)) -> Response:
+def get_avatar(user_id: int, db: Database = Depends(get_db)) -> Response:
     row = db.execute("SELECT content_type, data FROM avatars WHERE user_id = ?", (user_id,)).fetchone()
     if row is None:
         raise HTTPException(404, "Sem foto.")
     return Response(
-        content=row["data"],
+        content=bytes(row["data"]),
         media_type=row["content_type"],
         headers={
             # O endereço muda (?v=...) a cada foto nova, então pode ficar em cache por bastante tempo.
@@ -261,7 +261,7 @@ class Top5In(BaseModel):
 
 @router.put("/profile/top5")
 def save_top5(
-    data: Top5In, user: dict = Depends(current_user), db: sqlite3.Connection = Depends(get_db)
+    data: Top5In, user: dict = Depends(current_user), db: Database = Depends(get_db)
 ) -> dict[str, Any]:
     ids = [art.id for art in data.artworks]
     if len(set(ids)) != len(ids):

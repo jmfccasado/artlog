@@ -16,3 +16,6 @@ typing-inspection==0.4.4
 typing_extensions==4.16.0
 urllib3==2.8.0
 uvicorn==0.54.0
+# PostgreSQL (usado só quando a variável DATABASE_URL existe, como no Render)
+psycopg[binary]>=3.2,<4
+psycopg-pool>=3.2,<4

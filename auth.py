@@ -1,7 +1,7 @@
 """Contas de usuário do Artlog: cadastro, login, logout e sessão.
 
 Como funciona:
-- Os dados ficam num arquivo SQLite (artlog.db, ao lado deste arquivo).
+- Os dados ficam no banco definido em db.py: SQLite no seu computador, PostgreSQL no Render.
 - A senha nunca é guardada: guardamos um hash scrypt (da biblioteca padrão do Python).
 - Ao entrar, o servidor cria uma sessão e manda um cookie HttpOnly com um token
   aleatório. O JavaScript da página não consegue ler esse cookie, e o banco guarda
@@ -24,18 +24,14 @@ import hmac
 import os
 import re
 import secrets
-import sqlite3
 import threading
 import time
-from contextlib import closing
-from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 
-BASE_DIR = Path(__file__).resolve().parent
-DB_PATH = Path(os.environ.get("ARTLOG_DB", BASE_DIR / "artlog.db"))
+from db import Database, IntegrityError, Row, get_db, init_db
 
 SESSION_COOKIE = "artlog_session"
 SESSION_DAYS = 30
@@ -52,125 +48,8 @@ router = APIRouter(prefix="/auth", tags=["contas"])
 
 
 # ---------------------------------------------------------------------------
-# Banco de dados
+# Banco de dados: SQLite ou PostgreSQL, conforme a variável DATABASE_URL (ver db.py)
 # ---------------------------------------------------------------------------
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS users (
-    id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    username      TEXT NOT NULL UNIQUE,
-    email         TEXT NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL,
-    created_at    INTEGER NOT NULL
-);
-CREATE TABLE IF NOT EXISTS sessions (
-    token_hash TEXT PRIMARY KEY,
-    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    created_at INTEGER NOT NULL,
-    expires_at INTEGER NOT NULL
-);
-CREATE INDEX IF NOT EXISTS sessions_user ON sessions(user_id);
-
--- Foto de perfil (uma por usuário), guardada no próprio banco.
-CREATE TABLE IF NOT EXISTS avatars (
-    user_id      INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-    content_type TEXT NOT NULL,
-    data         BLOB NOT NULL
-);
-
--- Top 5 de obras. Guarda uma cópia da obra (título, imagem...) para o perfil
--- aparecer sem precisar consultar os museus de novo.
-CREATE TABLE IF NOT EXISTS top_artworks (
-    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    position   INTEGER NOT NULL CHECK (position BETWEEN 1 AND 5),
-    artwork_id TEXT NOT NULL,
-    artwork    TEXT NOT NULL,  -- JSON
-    PRIMARY KEY (user_id, position),
-    UNIQUE (user_id, artwork_id)
-);
-
--- Curadorias: listas de obras com nome, públicas ou privadas (substituem a "Minha coleção").
-CREATE TABLE IF NOT EXISTS curations (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    title       TEXT NOT NULL,
-    description TEXT NOT NULL DEFAULT '',
-    is_public   INTEGER NOT NULL DEFAULT 1,
-    created_at  INTEGER NOT NULL,
-    updated_at  INTEGER NOT NULL
-);
-CREATE INDEX IF NOT EXISTS curations_user ON curations(user_id);
-CREATE INDEX IF NOT EXISTS curations_public_updated ON curations(is_public, updated_at);
-
--- Obras de cada curadoria, com a nota e a data em que a pessoa viu a obra.
-CREATE TABLE IF NOT EXISTS curation_items (
-    curation_id INTEGER NOT NULL REFERENCES curations(id) ON DELETE CASCADE,
-    artwork_id  TEXT NOT NULL,
-    artwork     TEXT NOT NULL,  -- JSON (cópia da obra, como no Top 5)
-    position    INTEGER NOT NULL,
-    note        TEXT NOT NULL DEFAULT '',
-    seen        TEXT NOT NULL DEFAULT '',  -- AAAA-MM-DD ou vazio
-    added_at    INTEGER NOT NULL,
-    PRIMARY KEY (curation_id, artwork_id)
-);
-
--- Uma nota (1 a 5 estrelas) por pessoa em cada curadoria.
-CREATE TABLE IF NOT EXISTS curation_ratings (
-    curation_id INTEGER NOT NULL REFERENCES curations(id) ON DELETE CASCADE,
-    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    stars       INTEGER NOT NULL CHECK (stars BETWEEN 1 AND 5),
-    rated_at    INTEGER NOT NULL,
-    PRIMARY KEY (curation_id, user_id)
-);
-
--- Quem segue quem.
-CREATE TABLE IF NOT EXISTS follows (
-    follower_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    followee_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    created_at  INTEGER NOT NULL,
-    PRIMARY KEY (follower_id, followee_id),
-    CHECK (follower_id != followee_id)
-);
-CREATE INDEX IF NOT EXISTS follows_followee ON follows(followee_id);
-"""
-
-# Colunas que entraram depois da primeira versão. Bancos antigos ganham as colunas
-# automaticamente ao iniciar, sem perder as contas que já existem.
-USER_COLUMNS = {
-    "display_name": "TEXT NOT NULL DEFAULT ''",
-    "bio": "TEXT NOT NULL DEFAULT ''",
-    "avatar_version": "INTEGER",  # muda a cada foto nova, para o navegador não usar a antiga do cache
-}
-
-
-def _connect() -> sqlite3.Connection:
-    # check_same_thread=False: cada conexão é usada por uma só requisição, mas o FastAPI
-    # pode abri-la numa thread e usá-la em outra (rotas async, como o envio da foto).
-    conn = sqlite3.connect(DB_PATH, timeout=10, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
-
-
-def init_db() -> None:
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with closing(_connect()) as conn:
-        conn.executescript(SCHEMA)
-        existing = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
-        with conn:
-            for name, definition in USER_COLUMNS.items():
-                if name not in existing:
-                    conn.execute(f"ALTER TABLE users ADD COLUMN {name} {definition}")
-
-
-def get_db() -> Iterator[sqlite3.Connection]:
-    """Uma conexão por requisição (as rotas rodam em várias threads)."""
-    conn = _connect()
-    try:
-        yield conn
-    finally:
-        conn.close()
-
-
 init_db()
 
 
@@ -253,7 +132,7 @@ def _token_hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def _start_session(db: sqlite3.Connection, response: Response, user_id: int) -> None:
+def _start_session(db: Database, response: Response, user_id: int) -> None:
     token = secrets.token_urlsafe(32)
     now = int(time.time())
     expires = now + SESSION_DAYS * 86400
@@ -274,12 +153,12 @@ def _start_session(db: sqlite3.Connection, response: Response, user_id: int) -> 
     )
 
 
-def avatar_url(user: sqlite3.Row) -> str | None:
+def avatar_url(user: Row) -> str | None:
     version = user["avatar_version"]
     return f"/avatars/{user['id']}?v={version}" if version else None
 
 
-def public_user(user: sqlite3.Row) -> dict[str, Any]:
+def public_user(user: Row) -> dict[str, Any]:
     """O que pode sair para o navegador (nunca o hash da senha)."""
     return {
         "id": user["id"],
@@ -294,7 +173,7 @@ def public_user(user: sqlite3.Row) -> dict[str, Any]:
 _public = public_user
 
 
-def profile_card(user: sqlite3.Row) -> dict[str, Any]:
+def profile_card(user: Row) -> dict[str, Any]:
     """Versão pública de alguém (para outras pessoas verem): sem e-mail."""
     return {
         "id": user["id"],
@@ -305,7 +184,7 @@ def profile_card(user: sqlite3.Row) -> dict[str, Any]:
     }
 
 
-def optional_user(request: Request, db: sqlite3.Connection = Depends(get_db)) -> dict[str, Any] | None:
+def optional_user(request: Request, db: Database = Depends(get_db)) -> dict[str, Any] | None:
     token = request.cookies.get(SESSION_COOKIE)
     if not token:
         return None
@@ -340,7 +219,7 @@ class LoginIn(BaseModel):
 
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
-def register(data: RegisterIn, response: Response, db: sqlite3.Connection = Depends(get_db)) -> dict[str, Any]:
+def register(data: RegisterIn, response: Response, db: Database = Depends(get_db)) -> dict[str, Any]:
     username = data.username.strip().lstrip("@").lower()
     email = data.email.strip().lower()
 
@@ -362,20 +241,20 @@ def register(data: RegisterIn, response: Response, db: sqlite3.Connection = Depe
 
     try:
         with db:
-            cur = db.execute(
-                "INSERT INTO users (username, email, password_hash, created_at) VALUES (?, ?, ?, ?)",
+            new_id = db.execute(
+                "INSERT INTO users (username, email, password_hash, created_at) VALUES (?, ?, ?, ?) RETURNING id",
                 (username, email, hash_password(data.password), int(time.time())),
-            )
-    except sqlite3.IntegrityError:  # duas pessoas criando a mesma conta ao mesmo tempo
+            ).fetchone()["id"]
+    except IntegrityError:  # duas pessoas criando a mesma conta ao mesmo tempo
         raise HTTPException(409, "Esse nome de usuário ou e-mail acabou de ser usado. Tente outro.") from None
 
-    user = db.execute("SELECT * FROM users WHERE id = ?", (cur.lastrowid,)).fetchone()
+    user = db.execute("SELECT * FROM users WHERE id = ?", (new_id,)).fetchone()
     _start_session(db, response, user["id"])  # já entra depois de criar a conta
     return {"user": _public(user)}
 
 
 @router.post("/login")
-def login(data: LoginIn, response: Response, db: sqlite3.Connection = Depends(get_db)) -> dict[str, Any]:
+def login(data: LoginIn, response: Response, db: Database = Depends(get_db)) -> dict[str, Any]:
     ident = data.login.strip().lstrip("@").lower()
     _check_throttle(ident)
 
@@ -392,7 +271,7 @@ def login(data: LoginIn, response: Response, db: sqlite3.Connection = Depends(ge
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-def logout(request: Request, db: sqlite3.Connection = Depends(get_db)) -> Response:
+def logout(request: Request, db: Database = Depends(get_db)) -> Response:
     token = request.cookies.get(SESSION_COOKIE)
     if token:
         with db:

@@ -29,7 +29,6 @@ from __future__ import annotations
 
 import json
 import re
-import sqlite3
 import time
 from typing import Any
 
@@ -37,6 +36,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from auth import current_user, get_db, optional_user, profile_card
+from db import Database, Row
 from user_profile import ArtworkIn, clean_artwork
 
 router = APIRouter(tags=["curadorias e pessoas"])
@@ -77,14 +77,14 @@ def _seen(value: str) -> str:
 SUMMARY_SQL = """
 SELECT c.*,
        (SELECT COUNT(*) FROM curation_items i WHERE i.curation_id = c.id)      AS item_count,
-       (SELECT AVG(stars) FROM curation_ratings r WHERE r.curation_id = c.id)  AS rating_avg,
+       (SELECT CAST(AVG(stars) AS DOUBLE PRECISION) FROM curation_ratings r WHERE r.curation_id = c.id) AS rating_avg,
        (SELECT COUNT(*) FROM curation_ratings r WHERE r.curation_id = c.id)    AS rating_count,
        u.username, u.display_name, u.bio, u.avatar_version, u.id AS owner_id
 FROM curations c JOIN users u ON u.id = c.user_id
 """
 
 
-def _covers(db: sqlite3.Connection, ids: list[int]) -> dict[int, list[str]]:
+def _covers(db: Database, ids: list[int]) -> dict[int, list[str]]:
     """As 4 primeiras imagens de cada curadoria (para a capa em mosaico)."""
     if not ids:
         return {}
@@ -103,7 +103,7 @@ def _covers(db: sqlite3.Connection, ids: list[int]) -> dict[int, list[str]]:
     return covers
 
 
-def _summary(row: sqlite3.Row, covers: dict[int, list[str]]) -> dict[str, Any]:
+def _summary(row: Row, covers: dict[int, list[str]]) -> dict[str, Any]:
     owner = {
         "id": row["owner_id"],
         "username": row["username"],
@@ -128,13 +128,13 @@ def _summary(row: sqlite3.Row, covers: dict[int, list[str]]) -> dict[str, Any]:
     }
 
 
-def _summaries(db: sqlite3.Connection, where: str, params: tuple, order: str = "c.updated_at DESC", limit: int = 100) -> list[dict[str, Any]]:
+def _summaries(db: Database, where: str, params: tuple, order: str = "c.updated_at DESC", limit: int = 100) -> list[dict[str, Any]]:
     rows = db.execute(f"{SUMMARY_SQL} WHERE {where} ORDER BY {order} LIMIT ?", (*params, limit)).fetchall()
     covers = _covers(db, [row["id"] for row in rows])
     return [_summary(row, covers) for row in rows]
 
 
-def _get_curation(db: sqlite3.Connection, curation_id: int, viewer: dict | None) -> sqlite3.Row:
+def _get_curation(db: Database, curation_id: int, viewer: dict | None) -> Row:
     """A curadoria, se quem pede pode vê-la. Privada de outra pessoa = 404."""
     row = db.execute(f"{SUMMARY_SQL} WHERE c.id = ?", (curation_id,)).fetchone()
     if row is None or (not row["is_public"] and (viewer is None or viewer["id"] != row["user_id"])):
@@ -142,18 +142,18 @@ def _get_curation(db: sqlite3.Connection, curation_id: int, viewer: dict | None)
     return row
 
 
-def _own_curation(db: sqlite3.Connection, curation_id: int, user: dict) -> sqlite3.Row:
+def _own_curation(db: Database, curation_id: int, user: dict) -> Row:
     row = _get_curation(db, curation_id, user)
     if row["user_id"] != user["id"]:
         raise HTTPException(403, "Só quem criou a curadoria pode alterá-la.")
     return row
 
 
-def _touch(db: sqlite3.Connection, curation_id: int) -> None:
+def _touch(db: Database, curation_id: int) -> None:
     db.execute("UPDATE curations SET updated_at = ? WHERE id = ?", (_now(), curation_id))
 
 
-def _full(db: sqlite3.Connection, curation_id: int, viewer: dict | None) -> dict[str, Any]:
+def _full(db: Database, curation_id: int, viewer: dict | None) -> dict[str, Any]:
     row = _get_curation(db, curation_id, viewer)
     data = _summary(row, _covers(db, [row["id"]]))
     items = db.execute(
@@ -179,7 +179,7 @@ def _full(db: sqlite3.Connection, curation_id: int, viewer: dict | None) -> dict
 # Curadorias: rotas
 # ---------------------------------------------------------------------------
 @router.get("/curations/mine")
-def my_curations(user: dict = Depends(current_user), db: sqlite3.Connection = Depends(get_db)) -> dict[str, Any]:
+def my_curations(user: dict = Depends(current_user), db: Database = Depends(get_db)) -> dict[str, Any]:
     curations = _summaries(db, "c.user_id = ?", (user["id"],), limit=MAX_CURATIONS)
     rows = db.execute(
         """SELECT i.curation_id, i.artwork_id FROM curation_items i
@@ -196,7 +196,7 @@ def my_curations(user: dict = Depends(current_user), db: sqlite3.Connection = De
 
 @router.get("/curations/discover")
 def discover(
-    viewer: dict | None = Depends(optional_user), db: sqlite3.Connection = Depends(get_db)
+    viewer: dict | None = Depends(optional_user), db: Database = Depends(get_db)
 ) -> dict[str, Any]:
     """Curadorias públicas recentes, com pelo menos uma obra (menos as suas)."""
     me = viewer["id"] if viewer else -1
@@ -219,11 +219,11 @@ class CurationIn(BaseModel):
 
 @router.post("/curations", status_code=status.HTTP_201_CREATED)
 def create_curation(
-    data: CurationIn, user: dict = Depends(current_user), db: sqlite3.Connection = Depends(get_db)
+    data: CurationIn, user: dict = Depends(current_user), db: Database = Depends(get_db)
 ) -> dict[str, Any]:
     title = _text(data.title, TITLE_MAX, "título", required=True)
     description = _text(data.description, DESCRIPTION_MAX, "descrição", multiline=True)
-    count = db.execute("SELECT COUNT(*) FROM curations WHERE user_id = ?", (user["id"],)).fetchone()[0]
+    count = db.execute("SELECT COUNT(*) AS n FROM curations WHERE user_id = ?", (user["id"],)).fetchone()["n"]
     if count >= MAX_CURATIONS:
         raise HTTPException(422, f"Você chegou ao limite de {MAX_CURATIONS} curadorias.")
 
@@ -237,23 +237,24 @@ def create_curation(
 
     now = _now()
     with db:
-        cur = db.execute(
-            "INSERT INTO curations (user_id, title, description, is_public, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+        new_id = db.execute(
+            "INSERT INTO curations (user_id, title, description, is_public, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?) RETURNING id",
             (user["id"], title, description, int(data.is_public), now, now),
-        )
+        ).fetchone()["id"]
         db.executemany(
             "INSERT INTO curation_items (curation_id, artwork_id, artwork, position, note, seen, added_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
             [
-                (cur.lastrowid, art["id"], json.dumps(art, ensure_ascii=False), pos, note, seen, now)
+                (new_id, art["id"], json.dumps(art, ensure_ascii=False), pos, note, seen, now)
                 for pos, (art, note, seen) in enumerate(items, start=1)
             ],
         )
-    return {"curation": _full(db, cur.lastrowid, user)}
+    return {"curation": _full(db, new_id, user)}
 
 
 @router.get("/curations/{curation_id}")
 def get_curation(
-    curation_id: int, viewer: dict | None = Depends(optional_user), db: sqlite3.Connection = Depends(get_db)
+    curation_id: int, viewer: dict | None = Depends(optional_user), db: Database = Depends(get_db)
 ) -> dict[str, Any]:
     return {"curation": _full(db, curation_id, viewer)}
 
@@ -266,7 +267,7 @@ class CurationPatch(BaseModel):
 
 @router.patch("/curations/{curation_id}")
 def update_curation(
-    curation_id: int, data: CurationPatch, user: dict = Depends(current_user), db: sqlite3.Connection = Depends(get_db)
+    curation_id: int, data: CurationPatch, user: dict = Depends(current_user), db: Database = Depends(get_db)
 ) -> dict[str, Any]:
     _own_curation(db, curation_id, user)
     changes: dict[str, Any] = {}
@@ -289,7 +290,7 @@ def update_curation(
 
 @router.delete("/curations/{curation_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_curation(
-    curation_id: int, user: dict = Depends(current_user), db: sqlite3.Connection = Depends(get_db)
+    curation_id: int, user: dict = Depends(current_user), db: Database = Depends(get_db)
 ) -> None:
     _own_curation(db, curation_id, user)
     with db:
@@ -298,7 +299,7 @@ def delete_curation(
 
 @router.post("/curations/{curation_id}/items", status_code=status.HTTP_201_CREATED)
 def add_item(
-    curation_id: int, data: ItemIn, user: dict = Depends(current_user), db: sqlite3.Connection = Depends(get_db)
+    curation_id: int, data: ItemIn, user: dict = Depends(current_user), db: Database = Depends(get_db)
 ) -> dict[str, Any]:
     row = _own_curation(db, curation_id, user)
     art = clean_artwork(data.artwork)
@@ -329,7 +330,7 @@ class ItemPatch(BaseModel):
 
 @router.patch("/curations/{curation_id}/items")
 def update_item(
-    curation_id: int, data: ItemPatch, user: dict = Depends(current_user), db: sqlite3.Connection = Depends(get_db)
+    curation_id: int, data: ItemPatch, user: dict = Depends(current_user), db: Database = Depends(get_db)
 ) -> dict[str, Any]:
     _own_curation(db, curation_id, user)
     changes: dict[str, str] = {}
@@ -354,7 +355,7 @@ def remove_item(
     curation_id: int,
     artwork_id: str = Query(max_length=200),
     user: dict = Depends(current_user),
-    db: sqlite3.Connection = Depends(get_db),
+    db: Database = Depends(get_db),
 ) -> None:
     _own_curation(db, curation_id, user)
     with db:
@@ -368,7 +369,7 @@ class OrderIn(BaseModel):
 
 @router.put("/curations/{curation_id}/order")
 def reorder(
-    curation_id: int, data: OrderIn, user: dict = Depends(current_user), db: sqlite3.Connection = Depends(get_db)
+    curation_id: int, data: OrderIn, user: dict = Depends(current_user), db: Database = Depends(get_db)
 ) -> dict[str, Any]:
     _own_curation(db, curation_id, user)
     current = {r[0] for r in db.execute("SELECT artwork_id FROM curation_items WHERE curation_id = ?", (curation_id,))}
@@ -386,9 +387,9 @@ class RatingIn(BaseModel):
     stars: int = Field(ge=1, le=5)
 
 
-def _rating(db: sqlite3.Connection, curation_id: int, user_id: int) -> dict[str, Any]:
+def _rating(db: Database, curation_id: int, user_id: int) -> dict[str, Any]:
     row = db.execute(
-        "SELECT AVG(stars) AS avg, COUNT(*) AS n FROM curation_ratings WHERE curation_id = ?", (curation_id,)
+        "SELECT CAST(AVG(stars) AS DOUBLE PRECISION) AS avg, COUNT(*) AS n FROM curation_ratings WHERE curation_id = ?", (curation_id,)
     ).fetchone()
     mine = db.execute(
         "SELECT stars FROM curation_ratings WHERE curation_id = ? AND user_id = ?", (curation_id, user_id)
@@ -401,7 +402,7 @@ def _rating(db: sqlite3.Connection, curation_id: int, user_id: int) -> dict[str,
 
 @router.put("/curations/{curation_id}/rating")
 def rate(
-    curation_id: int, data: RatingIn, user: dict = Depends(current_user), db: sqlite3.Connection = Depends(get_db)
+    curation_id: int, data: RatingIn, user: dict = Depends(current_user), db: Database = Depends(get_db)
 ) -> dict[str, Any]:
     row = _get_curation(db, curation_id, user)
     if row["user_id"] == user["id"]:
@@ -419,7 +420,7 @@ def rate(
 
 @router.delete("/curations/{curation_id}/rating")
 def unrate(
-    curation_id: int, user: dict = Depends(current_user), db: sqlite3.Connection = Depends(get_db)
+    curation_id: int, user: dict = Depends(current_user), db: Database = Depends(get_db)
 ) -> dict[str, Any]:
     _get_curation(db, curation_id, user)
     with db:
@@ -430,14 +431,14 @@ def unrate(
 # ---------------------------------------------------------------------------
 # Pessoas
 # ---------------------------------------------------------------------------
-def _user_by_name(db: sqlite3.Connection, username: str) -> sqlite3.Row:
+def _user_by_name(db: Database, username: str) -> Row:
     row = db.execute("SELECT * FROM users WHERE username = ?", (username.lstrip("@").lower(),)).fetchone()
     if row is None:
         raise HTTPException(404, "Pessoa não encontrada.")
     return row
 
 
-def _follow_counts(db: sqlite3.Connection, user_id: int, viewer: dict | None) -> dict[str, Any]:
+def _follow_counts(db: Database, user_id: int, viewer: dict | None) -> dict[str, Any]:
     followers = db.execute("SELECT COUNT(*) FROM follows WHERE followee_id = ?", (user_id,)).fetchone()[0]
     following = db.execute("SELECT COUNT(*) FROM follows WHERE follower_id = ?", (user_id,)).fetchone()[0]
     is_following = bool(viewer) and db.execute(
@@ -448,7 +449,7 @@ def _follow_counts(db: sqlite3.Connection, user_id: int, viewer: dict | None) ->
 
 @router.get("/users/{username}")
 def public_profile(
-    username: str, viewer: dict | None = Depends(optional_user), db: sqlite3.Connection = Depends(get_db)
+    username: str, viewer: dict | None = Depends(optional_user), db: Database = Depends(get_db)
 ) -> dict[str, Any]:
     user = _user_by_name(db, username)
     is_me = bool(viewer and viewer["id"] == user["id"])
@@ -464,32 +465,32 @@ def public_profile(
 
 
 @router.post("/users/{username}/follow")
-def follow(username: str, viewer: dict = Depends(current_user), db: sqlite3.Connection = Depends(get_db)) -> dict[str, Any]:
+def follow(username: str, viewer: dict = Depends(current_user), db: Database = Depends(get_db)) -> dict[str, Any]:
     user = _user_by_name(db, username)
     if user["id"] == viewer["id"]:
         raise HTTPException(422, "Você não pode seguir a si mesmo.")
     with db:
         db.execute(
-            "INSERT OR IGNORE INTO follows (follower_id, followee_id, created_at) VALUES (?, ?, ?)",
+            "INSERT INTO follows (follower_id, followee_id, created_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING",
             (viewer["id"], user["id"], _now()),
         )
     return _follow_counts(db, user["id"], viewer)
 
 
 @router.delete("/users/{username}/follow")
-def unfollow(username: str, viewer: dict = Depends(current_user), db: sqlite3.Connection = Depends(get_db)) -> dict[str, Any]:
+def unfollow(username: str, viewer: dict = Depends(current_user), db: Database = Depends(get_db)) -> dict[str, Any]:
     user = _user_by_name(db, username)
     with db:
         db.execute("DELETE FROM follows WHERE follower_id = ? AND followee_id = ?", (viewer["id"], user["id"]))
     return _follow_counts(db, user["id"], viewer)
 
 
-def _people(db: sqlite3.Connection, sql: str, user_id: int) -> list[dict[str, Any]]:
+def _people(db: Database, sql: str, user_id: int) -> list[dict[str, Any]]:
     return [profile_card(row) for row in db.execute(sql, (user_id,)).fetchall()]
 
 
 @router.get("/users/{username}/followers")
-def followers(username: str, db: sqlite3.Connection = Depends(get_db)) -> dict[str, Any]:
+def followers(username: str, db: Database = Depends(get_db)) -> dict[str, Any]:
     user = _user_by_name(db, username)
     sql = """SELECT u.* FROM follows f JOIN users u ON u.id = f.follower_id
              WHERE f.followee_id = ? ORDER BY f.created_at DESC LIMIT 500"""
@@ -497,7 +498,7 @@ def followers(username: str, db: sqlite3.Connection = Depends(get_db)) -> dict[s
 
 
 @router.get("/users/{username}/following")
-def following(username: str, db: sqlite3.Connection = Depends(get_db)) -> dict[str, Any]:
+def following(username: str, db: Database = Depends(get_db)) -> dict[str, Any]:
     user = _user_by_name(db, username)
     sql = """SELECT u.* FROM follows f JOIN users u ON u.id = f.followee_id
              WHERE f.follower_id = ? ORDER BY f.created_at DESC LIMIT 500"""
@@ -505,7 +506,7 @@ def following(username: str, db: sqlite3.Connection = Depends(get_db)) -> dict[s
 
 
 @router.get("/feed")
-def feed(viewer: dict = Depends(current_user), db: sqlite3.Connection = Depends(get_db)) -> dict[str, Any]:
+def feed(viewer: dict = Depends(current_user), db: Database = Depends(get_db)) -> dict[str, Any]:
     """Curadorias públicas (com obras) de quem você segue, das mais recentes para as mais antigas."""
     where = """c.is_public = 1
                AND c.user_id IN (SELECT followee_id FROM follows WHERE follower_id = ?)

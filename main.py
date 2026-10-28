@@ -49,6 +49,10 @@ from social import router as social_router  # noqa: E402
 logging.basicConfig(level=logging.INFO, format="%(levelname)s [%(name)s] %(message)s")
 log = logging.getLogger("artlog")
 
+import db  # noqa: E402
+
+log.info("Banco de dados: %s", db.describe())
+
 app = FastAPI(
     title="Artlog API",
     description="API unificada para busca de acervos em múltiplos museus.",
