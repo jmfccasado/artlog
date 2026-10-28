@@ -264,5 +264,186 @@ body {
 }
 
 
+/* CONTA (NAVBAR) */
+.nav-end { display: flex; align-items: center; gap: 1.75rem; }
+.account { display: flex; align-items: center; gap: 1rem; }
+.account.is-loading { visibility: hidden; }  /* evita piscar "Entrar" antes de saber se está logado */
+.account-btn {
+    padding: 0.55rem 1.1rem; background: var(--text-main); color: var(--bg-main); border: none;
+    font: inherit; font-size: 0.85rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.05em; cursor: pointer;
+}
+.account-btn:hover, .account-btn:focus-visible { background: var(--brand-accent); color: var(--on-accent, #fff); }
+.account-user {
+    display: flex; align-items: center; gap: 0.55rem; background: none; border: none; padding: 0;
+    font: inherit; font-weight: 700; font-size: 0.95rem; color: var(--text-main); cursor: pointer;
+}
+.account-user:hover #account-name { text-decoration: underline; text-underline-offset: 3px; }
+.account-user:focus-visible { outline: 3px solid var(--brand-accent); outline-offset: 3px; }
+.account-link {
+    background: none; border: none; padding: 0; font: inherit; font-size: 0.85rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); cursor: pointer;
+    text-decoration: underline; text-underline-offset: 3px;
+}
+.account-link:hover { color: var(--text-main); }
+.account-btn:focus-visible, .account-link:focus-visible { outline: 3px solid var(--brand-accent); outline-offset: 2px; }
+
+/* JANELA DE ENTRAR / CRIAR CONTA */
+.auth {
+    margin: auto; width: min(440px, 94vw); max-height: 94vh; overflow: auto; padding: 0;
+    border: 2px solid var(--text-main); background: var(--bg-main); color: var(--text-main);
+}
+.auth::backdrop { background: rgba(20, 18, 31, 0.6); }
+.auth-body { padding: 2.25rem 2rem 2rem; }
+.auth-logo { display: block; font-size: 1.6rem; margin-bottom: 1.5rem; }
+.auth-body h2 { font-size: 1.9rem; letter-spacing: -0.03em; line-height: 1.1; margin-bottom: 1.25rem; }
+.auth-tabs { margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-light); }
+.auth-tabs button { padding-bottom: 0.5rem; margin-bottom: -1px; }
+.auth-tabs button:focus-visible { outline: 3px solid var(--brand-accent); outline-offset: 2px; }
+.auth-form { display: flex; flex-direction: column; }
+.auth-form label { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; margin: 1rem 0 0.4rem; }
+.auth-form label:first-child { margin-top: 0; }
+.auth-form input:not([type="checkbox"]) {
+    font: inherit; font-size: 1rem; padding: 0.75rem 0.9rem; border: 2px solid var(--text-main);
+    background: var(--bg-main); color: inherit; border-radius: 0;
+}
+.auth-form input:not([type="checkbox"]):focus { outline: 3px solid var(--brand-accent); outline-offset: 2px; }
+.auth-hint { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.4rem; }
+.auth-form .auth-check {
+    display: flex; align-items: center; gap: 0.5rem; text-transform: none; letter-spacing: 0;
+    font-weight: 500; font-size: 0.9rem; cursor: pointer;
+}
+.auth-check input { width: 1rem; height: 1rem; accent-color: var(--text-main); }
+.auth-error { color: var(--artlog-red); font-weight: 600; font-size: 0.9rem; margin-top: 1rem; }
+.auth-error:empty { display: none; }
+.auth-form button[type="submit"] {
+    margin-top: 1.5rem; padding: 1rem; background: var(--text-main); color: var(--bg-main); border: none;
+    font: inherit; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer;
+}
+.auth-form button[type="submit"]:hover,
+.auth-form button[type="submit"]:focus-visible { background: var(--brand-accent); color: var(--on-accent, #fff); }
+.auth-form button[type="submit"]:focus-visible { outline: 3px solid var(--text-main); outline-offset: 2px; }
+.auth-form button[type="submit"]:disabled { opacity: 0.6; cursor: progress; }
+@media (max-width: 700px) {
+    .nav-end { gap: 1.25rem; }
+    .auth-body { padding: 2rem 1.25rem 1.5rem; }
+}
+
+/* AVATAR (FOTO DE PERFIL) */
+.avatar {
+    display: inline-flex; align-items: center; justify-content: center; flex: none;
+    border-radius: 50%; overflow: hidden; background: var(--text-main); color: var(--bg-main);
+    font-weight: 700; line-height: 1; user-select: none;
+}
+.avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.avatar-sm { width: 1.9rem; height: 1.9rem; font-size: 0.85rem; }
+.avatar-lg { width: 7.5rem; height: 7.5rem; font-size: 3rem; border: 2px solid var(--text-main); }
+
+.btn-outline {
+    padding: 0.65rem 1.2rem; background: var(--bg-main); color: var(--text-main);
+    border: 2px solid var(--text-main); font: inherit; font-size: 0.85rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer;
+}
+.btn-outline:hover:not(:disabled), .btn-outline:focus-visible { background: var(--text-main); color: var(--bg-main); }
+.btn-outline:focus-visible { outline: 3px solid var(--brand-accent); outline-offset: 2px; }
+.btn-outline:disabled { opacity: 0.5; cursor: not-allowed; }
+.detail-log .btn-outline { padding: 0.6rem 1rem; background: var(--bg-main); color: var(--text-main); border: 2px solid var(--text-main); }
+.detail-log button.btn-outline:hover:not(:disabled) { background: var(--text-main); color: var(--bg-main); }
+
+/* PÁGINA DE PERFIL */
+.profile-head {
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 2rem; align-items: center;
+    padding-bottom: 2.5rem; border-bottom: 2px solid var(--text-main);
+}
+.profile-info h1 { font-size: clamp(2rem, 4vw, 3rem); letter-spacing: -0.04em; line-height: 1.05; overflow-wrap: anywhere; }
+.profile-handle { margin-top: 0.3rem; font-weight: 600; color: var(--text-muted); }
+.profile-bio { margin-top: 0.9rem; max-width: 60ch; line-height: 1.5; white-space: pre-line; overflow-wrap: anywhere; }
+.profile-msg { min-height: 1.5em; margin: 1rem 0 0.5rem; font-weight: 600; }
+
+.top5 { margin-top: 1.5rem; }
+.section-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.5rem 2rem; margin-bottom: 1.5rem; }
+.section-head h2 {
+    font-size: 0.9rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+    padding-bottom: 0.3rem; border-bottom: 3px solid var(--brand-accent);
+}
+.section-head p { font-size: 0.9rem; color: var(--text-muted); }
+
+.top5-list { list-style: none; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1.5rem; }
+.top-slot { position: relative; display: flex; flex-direction: column; min-width: 0; }
+.top-rank {
+    position: absolute; top: -0.7rem; left: -0.7rem; z-index: 1; width: 2rem; height: 2rem;
+    display: flex; align-items: center; justify-content: center; border-radius: 50%;
+    background: var(--text-main); color: var(--bg-main); font-weight: 700; font-size: 0.95rem;
+}
+.top-art, .top-add {
+    display: block; width: 100%; aspect-ratio: 2 / 3; padding: 0; overflow: hidden; cursor: pointer;
+    border: 2px solid var(--text-main); background: var(--bg-card);
+}
+.top-art img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.25s ease; }
+.top-art:hover img { transform: scale(1.04); }
+.top-art:focus-visible, .top-add:focus-visible { outline: 3px solid var(--brand-accent); outline-offset: 3px; }
+.top-add {
+    border-style: dashed; border-color: var(--text-muted); color: var(--text-muted);
+    font: inherit; font-size: 2.5rem; font-weight: 300;
+}
+.top-add:hover { border-color: var(--text-main); color: var(--text-main); border-style: solid; }
+.top-title { margin-top: 0.75rem; font-weight: 700; line-height: 1.25; font-size: 0.95rem; overflow-wrap: anywhere; }
+.top-artist { margin-top: 0.2rem; font-size: 0.85rem; color: var(--text-muted); }
+.top-controls { display: flex; gap: 0.4rem; margin-top: 0.6rem; }
+.top-controls button {
+    width: 2rem; height: 2rem; border: 1px solid var(--text-main); background: var(--bg-main);
+    color: var(--text-main); font: inherit; font-size: 1rem; line-height: 1; cursor: pointer;
+}
+.top-controls button:hover:not(:disabled) { background: var(--text-main); color: var(--bg-main); }
+.top-controls button:focus-visible { outline: 3px solid var(--brand-accent); outline-offset: 2px; }
+.top-controls button:disabled { opacity: 0.3; cursor: default; }
+.top-controls .top-remove { margin-left: auto; }
+
+/* JANELA DE EDITAR PERFIL */
+.profile-edit { width: min(520px, 94vw); }
+.profile-edit h2 { margin-bottom: 1.5rem; }
+.avatar-edit { display: flex; align-items: center; gap: 1.5rem; }
+.avatar-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 0.6rem; }
+.auth-form textarea {
+    font: inherit; font-size: 1rem; padding: 0.75rem 0.9rem; border: 2px solid var(--text-main);
+    background: var(--bg-main); color: inherit; border-radius: 0; resize: vertical; line-height: 1.45;
+}
+.auth-form textarea:focus { outline: 3px solid var(--brand-accent); outline-offset: 2px; }
+#profile-form { margin-top: 1.5rem; }
+.password-form { margin-top: 2.5rem; padding-top: 1.75rem; border-top: 2px solid var(--text-main); }
+.password-form h3 { font-size: 1.15rem; letter-spacing: -0.02em; margin-bottom: 1rem; }
+.auth-ok { font-weight: 600; font-size: 0.9rem; margin-top: 1rem; }
+.auth-ok:empty { display: none; }
+
+/* ESCOLHER OBRA PARA O TOP 5 */
+.top-picker { width: min(640px, 94vw); }
+.picker-hint { margin: -0.5rem 0 1.25rem; }
+.picker-list { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 1rem; }
+.picker-item {
+    display: flex; flex-direction: column; gap: 0.5rem; width: 100%; padding: 0; text-align: left;
+    background: none; border: none; font: inherit; color: inherit; cursor: pointer;
+}
+.picker-item img { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border: 2px solid var(--text-main); background: var(--bg-card); }
+.picker-item strong { display: block; font-size: 0.9rem; line-height: 1.25; }
+.picker-item span span { display: block; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.15rem; }
+.picker-item:hover img { border-color: var(--brand-accent); }
+.picker-item:focus-visible { outline: 3px solid var(--brand-accent); outline-offset: 3px; }
+.picker-empty { padding: 2rem; text-align: center; border: 2px dashed var(--border-light); color: var(--text-muted); }
+
+@media (max-width: 900px) {
+    .top5-list { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2rem 1.25rem; }
+}
+@media (max-width: 640px) {
+    .profile-head { grid-template-columns: auto minmax(0, 1fr); gap: 1.25rem; }
+    .profile-head .avatar-lg { width: 5rem; height: 5rem; font-size: 2rem; }
+    .profile-head .btn-outline { grid-column: 1 / -1; justify-self: start; }
+    .top5-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .avatar-edit .avatar-lg { width: 5.5rem; height: 5.5rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .top-art img { transition: none; }
+    .top-art:hover img { transform: none; }
+}
+
 /* Garante que o atributo hidden sempre esconde, mesmo com display definido em outra regra. */
 [hidden] { display: none !important; }

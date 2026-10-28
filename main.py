@@ -41,6 +41,10 @@ def _load_env_file(path: Path) -> None:
 
 _load_env_file(BASE_DIR / ".env")
 
+# Importado depois do .env, porque lê ARTLOG_DB e COOKIE_SECURE de lá.
+from auth import router as auth_router  # noqa: E402
+from user_profile import router as profile_router  # noqa: E402
+
 logging.basicConfig(level=logging.INFO, format="%(levelname)s [%(name)s] %(message)s")
 log = logging.getLogger("artlog")
 
@@ -62,6 +66,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Contas: /auth/register, /auth/login, /auth/logout, /auth/me (ver auth.py).
+app.include_router(auth_router)
+# Perfil e Top 5: /profile, /profile/password, /profile/avatar, /profile/top5 (ver user_profile.py).
+app.include_router(profile_router)
 
 # Pasta de assets (imagens, logos, ícones), se existir.
 ASSETS_DIR = BASE_DIR / "assets"

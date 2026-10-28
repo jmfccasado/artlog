@@ -219,3 +219,9 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 .DS_Store
+
+# Banco local do Artlog (contas e sessões)
+artlog.db
+artlog.db-journal
+artlog.db-wal
+artlog.db-shm
