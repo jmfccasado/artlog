@@ -98,17 +98,20 @@
         return img;
     }
 
-    // Foto redonda; sem foto, mostra a inicial do nome.
+    // Foto redonda: a enviada pela pessoa ou a padrão sorteada no cadastro.
+    // Sem nenhuma (ou se a imagem não carregar), mostra a inicial do nome.
     function paintAvatar(node, user) {
-        node.replaceChildren();
-        if (user.avatar_url) {
-            const img = el("img");
-            img.src = user.avatar_url;
-            img.alt = "";
-            node.append(img);
-        } else {
+        const initial = () => {
+            node.replaceChildren();
             node.textContent = (user.display_name || user.username || "?").trim().charAt(0).toUpperCase();
-        }
+        };
+        if (!user.avatar_url) { initial(); return; }
+        node.replaceChildren();
+        const img = el("img");
+        img.alt = "";
+        img.addEventListener("error", initial, { once: true });
+        img.src = user.avatar_url;
+        node.append(img);
     }
 
     // Só os campos de uma obra que o servidor aceita.
@@ -1551,7 +1554,7 @@
         currentUser = user;
         renderAccount();
         paintAvatar($("edit-avatar"), user);
-        avatarRemove.hidden = !user.avatar_url;
+        avatarRemove.hidden = !user.has_custom_avatar;
         if (profileData && profileData.is_me) {
             profileData.user = { ...profileData.user, ...user };
             delete profileData.user.email;
@@ -1573,7 +1576,7 @@
         passwordForm.username.value = currentUser.username;
         editDialog.querySelectorAll(".auth-error, .auth-ok").forEach((p) => { p.textContent = ""; });
         paintAvatar($("edit-avatar"), currentUser);
-        avatarRemove.hidden = !currentUser.avatar_url;
+        avatarRemove.hidden = !currentUser.has_custom_avatar;
         editDialog.showModal();
     }
     bioInput.addEventListener("input", () => { bioCount.textContent = `${bioInput.value.length}/300`; });

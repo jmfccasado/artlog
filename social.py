@@ -80,7 +80,7 @@ SELECT c.*,
        (SELECT COUNT(*) FROM curation_items i WHERE i.curation_id = c.id)      AS item_count,
        (SELECT CAST(AVG(stars) AS DOUBLE PRECISION) FROM curation_ratings r WHERE r.curation_id = c.id) AS rating_avg,
        (SELECT COUNT(*) FROM curation_ratings r WHERE r.curation_id = c.id)    AS rating_count,
-       u.username, u.display_name, u.bio, u.avatar_version, u.id AS owner_id
+       u.username, u.display_name, u.bio, u.avatar_version, u.default_avatar, u.id AS owner_id
 FROM curations c JOIN users u ON u.id = c.user_id
 """
 
@@ -111,6 +111,7 @@ def _summary(row: Row, covers: dict[int, list[str]]) -> dict[str, Any]:
         "display_name": row["display_name"],
         "bio": row["bio"],
         "avatar_version": row["avatar_version"],
+        "default_avatar": row["default_avatar"],
     }
     return {
         "id": row["id"],

@@ -58,7 +58,8 @@ CREATE TABLE IF NOT EXISTS users (
     display_name   TEXT NOT NULL DEFAULT '',
     bio            TEXT NOT NULL DEFAULT '',
     avatar_version {bigint},
-    name_key       TEXT NOT NULL DEFAULT ''
+    name_key       TEXT NOT NULL DEFAULT '',
+    default_avatar TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -141,6 +142,8 @@ USER_COLUMNS = {
     # Nome + @usuário sem acentos e em minúsculas, para a busca de pessoas
     # ("joao" encontra "João"). É feito em Python para funcionar igual nos dois bancos.
     "name_key": "TEXT NOT NULL DEFAULT ''",
+    # Foto de perfil padrão sorteada no cadastro (nome do arquivo em assets/avatars/).
+    "default_avatar": "TEXT NOT NULL DEFAULT ''",
 }
 
 

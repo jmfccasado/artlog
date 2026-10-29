@@ -22,10 +22,13 @@ import base64
 import hashlib
 import hmac
 import os
+import random
 import re
 import secrets
 import threading
 import time
+from contextlib import contextmanager
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -51,6 +54,50 @@ router = APIRouter(prefix="/auth", tags=["contas"])
 # Banco de dados: SQLite ou PostgreSQL, conforme a variável DATABASE_URL (ver db.py)
 # ---------------------------------------------------------------------------
 init_db()
+
+
+# ---------------------------------------------------------------------------
+# Fotos de perfil padrão
+# Cada conta recebe, por sorteio, uma das imagens de assets/avatars/. O nome do
+# arquivo fica guardado no banco, então a pessoa mantém a mesma imagem para sempre.
+# Quem envia uma foto própria passa a usar a dela; ao remover, volta para a padrão.
+# ---------------------------------------------------------------------------
+AVATARS_DIR = Path(__file__).resolve().parent / "assets" / "avatars"
+# Só nomes simples: o nome entra direto no endereço da imagem.
+AVATAR_FILE = re.compile(r"[A-Za-z0-9_-][A-Za-z0-9_.-]{0,80}\.(?:png|jpe?g|webp|gif|svg)", re.IGNORECASE)
+
+
+def default_avatars() -> list[str]:
+    """As imagens disponíveis agora na pasta (vazia enquanto não houver nenhuma)."""
+    if not AVATARS_DIR.is_dir():
+        return []
+    return sorted(p.name for p in AVATARS_DIR.iterdir() if p.is_file() and AVATAR_FILE.fullmatch(p.name))
+
+
+def pick_default_avatar() -> str:
+    """Sorteia uma imagem. Sem imagens na pasta, devolve '' (aparece a letra inicial)."""
+    choices = default_avatars()
+    return random.choice(choices) if choices else ""
+
+
+def assign_default_avatars() -> None:
+    """Na inicialização: sorteia uma imagem para quem ainda não tem uma, e uma nova
+    para quem tinha uma imagem que saiu da pasta. Quem já tem uma válida não muda."""
+    choices = default_avatars()
+    if not choices:
+        return
+    with contextmanager(get_db)() as db:
+        rows = db.execute("SELECT id, default_avatar FROM users").fetchall()
+        missing = [row["id"] for row in rows if row["default_avatar"] not in choices]
+        if missing:
+            with db:
+                db.executemany(
+                    "UPDATE users SET default_avatar = ? WHERE id = ?",
+                    [(random.choice(choices), user_id) for user_id in missing],
+                )
+
+
+assign_default_avatars()
 
 
 # ---------------------------------------------------------------------------
@@ -154,8 +201,14 @@ def _start_session(db: Database, response: Response, user_id: int) -> None:
 
 
 def avatar_url(user: Row) -> str | None:
+    """A foto enviada pela pessoa; se não houver, a padrão sorteada; se nem isso, None."""
     version = user["avatar_version"]
-    return f"/avatars/{user['id']}?v={version}" if version else None
+    if version:
+        return f"/avatars/{user['id']}?v={version}"
+    default = user["default_avatar"]
+    if default and AVATAR_FILE.fullmatch(default):
+        return f"/assets/avatars/{default}"
+    return None
 
 
 def public_user(user: Row) -> dict[str, Any]:
@@ -167,6 +220,8 @@ def public_user(user: Row) -> dict[str, Any]:
         "display_name": user["display_name"],
         "bio": user["bio"],
         "avatar_url": avatar_url(user),
+        # Para a página saber se mostra "Remover foto" (a padrão não se remove).
+        "has_custom_avatar": bool(user["avatar_version"]),
     }
 
 
@@ -242,8 +297,9 @@ def register(data: RegisterIn, response: Response, db: Database = Depends(get_db
     try:
         with db:
             new_id = db.execute(
-                "INSERT INTO users (username, email, password_hash, created_at, name_key) VALUES (?, ?, ?, ?, ?) RETURNING id",
-                (username, email, hash_password(data.password), int(time.time()), search_key(username)),
+                "INSERT INTO users (username, email, password_hash, created_at, name_key, default_avatar) "
+                "VALUES (?, ?, ?, ?, ?, ?) RETURNING id",
+                (username, email, hash_password(data.password), int(time.time()), search_key(username), pick_default_avatar()),
             ).fetchone()["id"]
     except IntegrityError:  # duas pessoas criando a mesma conta ao mesmo tempo
         raise HTTPException(409, "Esse nome de usuário ou e-mail acabou de ser usado. Tente outro.") from None
