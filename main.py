@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from itertools import zip_longest
@@ -114,6 +115,7 @@ def serve_js() -> FileResponse:
 # Páginas com endereço próprio (dá para compartilhar o link). Todas usam o mesmo
 # index.html; o app.js lê o endereço e mostra a tela certa.
 @app.get("/seguindo", include_in_schema=False)
+@app.get("/pessoas", include_in_schema=False)
 @app.get("/u/{username}", include_in_schema=False)
 @app.get("/c/{curation_id}", include_in_schema=False)
 def serve_app_page() -> FileResponse:
@@ -471,23 +473,205 @@ LOUVRE_ARK_LINK = re.compile(r"/ark:/53355/(cl\d{6,})")
 # Cada obra é um pedido extra a um site sem API pública de busca: pedimos poucas sobras.
 LOUVRE_OVERFETCH = 2
 
+# Desde 2026 a página de busca do Louvre mostra uma verificação anti-robô
+# ("WADP - I am not a robot") para quem não é um navegador de verdade. O servidor do
+# artlog recebe essa página no lugar dos resultados, e por isso a busca voltava vazia.
+# O JSON de cada obra continua aberto: só a etapa de ACHAR as obras precisa de outro caminho.
+LOUVRE_CHALLENGE_MARKERS = ("I am not a robot", "WADP")
+# Depois de um bloqueio, não insiste por um tempo: vai direto para o Wikidata.
+LOUVRE_BLOCK_PAUSE = 30 * 60  # segundos
+_louvre_blocked_until = 0.0
 
-def _louvre_search_ids(q: str, count: int) -> list[str]:
-    """O Louvre não tem API de busca: lê a página de resultados e pega os ARKs."""
+# Plano B para achar obras: o Wikidata (a base de dados da Wikipédia) guarda o ARK do
+# Louvre de cada obra que cataloga, na propriedade P9394 ("Louvre Museum ARK ID",
+# 9 dígitos, sem o "cl"). A API é pública e feita para ser usada por programas.
+# Cobre as obras mais conhecidas (pinturas, esculturas famosas), não o acervo inteiro.
+WIKIDATA_API = "https://www.wikidata.org/w/api.php"
+# A Wikimedia pede um User-Agent que diga quem é o programa e como achar o responsável.
+WIKIDATA_USER_AGENT = "Artlog/1.2 (https://github.com/jmfccasado/artlog; personal art catalog project)"
+LOUVRE_WIKIDATA_PROP = "P9394"
+WIKIDATA_ARK = re.compile(r"\d{9}")
+
+
+def _louvre_search_ids(q: str, count: int) -> list[str] | None:
+    """Lê a página de busca do Louvre e pega os ARKs.
+
+    Devolve None quando o site não deixa ver os resultados (verificação anti-robô ou erro HTTP):
+    aí quem chamou usa o Wikidata. Uma lista vazia quer dizer "o Louvre não achou nada".
+    """
+    global _louvre_blocked_until
+    if time.time() < _louvre_blocked_until:
+        return None
+
     params = {"q": q}
     headers = {"Accept": "text/html"}
-    res = _get(f"{LOUVRE_SITE}/en/recherche", params, headers, APP_USER_AGENT)
-    if res.status_code in RETRY_WITH_BROWSER_STATUSES:
-        res = _get(f"{LOUVRE_SITE}/en/recherche", params, headers, BROWSER_USER_AGENT)
-    if res.status_code != 200:
-        log.warning("HTTP %s em %s", res.status_code, res.url)
-        raise MuseumError(f"HTTP {res.status_code}")
+    try:
+        res = _get(f"{LOUVRE_SITE}/en/recherche", params, headers, APP_USER_AGENT)
+        if res.status_code in RETRY_WITH_BROWSER_STATUSES:
+            res = _get(f"{LOUVRE_SITE}/en/recherche", params, headers, BROWSER_USER_AGENT)
+    except MuseumError as exc:
+        log.warning("[louvre] página de busca indisponível (%s); usando o Wikidata", exc)
+        return None
+
+    head = res.text[:3000]
+    if res.status_code != 200 or any(marker in head for marker in LOUVRE_CHALLENGE_MARKERS):
+        _louvre_blocked_until = time.time() + LOUVRE_BLOCK_PAUSE
+        log.warning(
+            "[louvre] busca do site bloqueada (HTTP %s, %d bytes, verificação anti-robô); "
+            "usando o Wikidata pelos próximos %d min",
+            res.status_code, len(res.text), LOUVRE_BLOCK_PAUSE // 60,
+        )
+        return None
 
     ids = list(dict.fromkeys(LOUVRE_ARK_LINK.findall(res.text)))  # sem repetir, em ordem
     if not ids:
         # Sem resultado de verdade ou o layout do site mudou: o log ajuda a distinguir.
         log.warning("[louvre] nenhum link de obra na página de busca (%d bytes)", len(res.text))
     return ids[:count]
+
+
+def _wikidata(params: dict[str, Any]) -> dict[str, Any]:
+    """Chamada à API do Wikidata, com o User-Agent que a Wikimedia pede."""
+    res = _get(
+        WIKIDATA_API,
+        {"format": "json", "formatversion": "2", "maxlag": "5", **params},
+        None,
+        WIKIDATA_USER_AGENT,
+    )
+    if res.status_code != 200:
+        log.warning("[wikidata] HTTP %s em %s", res.status_code, res.url)
+        raise MuseumError(f"Wikidata HTTP {res.status_code}")
+    try:
+        data = res.json()
+    except ValueError as exc:
+        raise MuseumError("o Wikidata não respondeu em JSON") from exc
+    if isinstance(data, dict) and data.get("error"):
+        raise MuseumError(f"Wikidata: {data['error'].get('code', 'erro')}")
+    return data
+
+
+def _claims(entity: dict[str, Any], prop: str) -> list[Any]:
+    """Valores de uma propriedade do Wikidata (ignora "sem valor" e "valor desconhecido")."""
+    values = []
+    for claim in (entity.get("claims") or {}).get(prop) or []:
+        value = ((claim.get("mainsnak") or {}).get("datavalue") or {}).get("value")
+        if value is not None:
+            values.append(value)
+    return values
+
+
+def _louvre_wikidata_items(q: str, count: int) -> list[dict[str, Any]]:
+    """Obras do Louvre no Wikidata que batem com o termo, em ordem de relevância."""
+    # Tira aspas e operadores: a busca do Wikidata trataria esses caracteres como comandos
+    # (uma palavra começando com "-" vira "NÃO"). Hífen no meio da palavra continua: "Saint-Siméon".
+    words = (w.strip("-'") for w in re.sub(r"[^\w\s'-]", " ", q).split())
+    clean = " ".join(w for w in words if w)
+    if not clean:
+        return []
+    found = _wikidata({
+        "action": "query",
+        "list": "search",
+        "srsearch": f"{clean} haswbstatement:{LOUVRE_WIKIDATA_PROP}",  # só itens com ARK do Louvre
+        "srlimit": count,
+        "srnamespace": 0,
+        "srprop": "",
+    })
+    qids = [hit.get("title") for hit in (found.get("query") or {}).get("search") or [] if hit.get("title")]
+    if not qids:
+        return []
+    entities = _wikidata({
+        "action": "wbgetentities",
+        "ids": "|".join(qids),
+        "props": "labels|claims",
+        "languages": "pt|en|fr",
+    }).get("entities") or {}
+
+    items = []
+    for qid in qids:  # mantém a ordem de relevância da busca
+        entity = entities.get(qid) or {}
+        arks = [v for v in _claims(entity, LOUVRE_WIKIDATA_PROP) if isinstance(v, str) and WIKIDATA_ARK.fullmatch(v)]
+        if arks:
+            items.append({"ark": f"cl{arks[0]}", "entity": entity})
+    return items
+
+
+def _roman(n: int) -> str:
+    out = ""
+    for value, sym in ((1000, "M"), (900, "CM"), (500, "D"), (400, "CD"), (100, "C"), (90, "XC"),
+                       (50, "L"), (40, "XL"), (10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I")):
+        while n >= value:
+            out, n = out + sym, n - value
+    return out
+
+
+def _wikidata_year(entity: dict[str, Any]) -> str | None:
+    """Data de criação (P571), respeitando a precisão que o Wikidata informa.
+
+    '+1503' com precisão 9 (ano) -> '1503'; 8 (década) -> 'década de 1500';
+    7 (século) -> 'século XVI'. Datas antes de Cristo ganham 'a.C.'.
+    """
+    for value in _claims(entity, "P571"):
+        if not isinstance(value, dict):
+            continue
+        match = re.match(r"([+-])0*(\d+)-", value.get("time", ""))
+        if not match:
+            continue
+        year, bc = int(match.group(2)), match.group(1) == "-"
+        precision = value.get("precision", 9)
+        suffix = " a.C." if bc else ""
+        if precision >= 9:
+            return f"{year}{suffix}"
+        if precision == 8:
+            return f"década de {year // 10 * 10}{suffix}"
+        if precision == 7:
+            return f"século {_roman(max(1, -(-year // 100)))}{suffix}"
+        return f"c. {year}{suffix}"
+    return None
+
+
+def _wikidata_artwork(item: dict[str, Any], names: dict[str, str]) -> dict[str, Any] | None:
+    """Monta a obra só com o Wikidata, para quando o JSON do Louvre falhar.
+
+    A imagem vem do Wikimedia Commons (P18), o banco de imagens livres da Wikipédia.
+    """
+    entity = item["entity"]
+    files = [v for v in _claims(entity, "P18") if isinstance(v, str)]
+    if not files:
+        return None
+    labels = entity.get("labels") or {}
+    title = next((labels[lang]["value"] for lang in ("pt", "en", "fr") if lang in labels), None)
+    creators = [v.get("id") for v in _claims(entity, "P170") if isinstance(v, dict)]
+    artist = ", ".join(names[c] for c in creators if c in names) or None
+    return make_artwork(
+        prefix="louvre",
+        raw_id=item["ark"],
+        title=title,
+        artist=artist,
+        image=f"https://commons.wikimedia.org/wiki/Special:FilePath/{quote(files[0])}?width=600",
+        year=_wikidata_year(entity),
+        museum=LOUVRE_NAME,
+        url=f"{LOUVRE_SITE}/ark:/53355/{item['ark']}",
+        credit="Imagem: Wikimedia Commons",
+    )
+
+
+def _wikidata_names(qids: list[str]) -> dict[str, str]:
+    """Nome de cada artista (P170 aponta para outro item do Wikidata, que tem o nome)."""
+    qids = list(dict.fromkeys(qids))[:50]
+    if not qids:
+        return {}
+    try:
+        entities = _wikidata({"action": "wbgetentities", "ids": "|".join(qids), "props": "labels", "languages": "pt|en|fr"})
+    except MuseumError as exc:
+        log.warning("[wikidata] nomes de artistas indisponíveis: %s", exc)
+        return {}
+    names = {}
+    for qid, entity in (entities.get("entities") or {}).items():
+        labels = entity.get("labels") or {}
+        name = next((labels[lang]["value"] for lang in ("pt", "en", "fr") if lang in labels), None)
+        if name:
+            names[qid] = name
+    return names
 
 
 def _louvre_artist(label: str | None) -> str | None:
@@ -549,14 +733,32 @@ def _louvre_object(ark: str) -> dict[str, Any] | None:
 
 
 def search_louvre(q: str, limit: int) -> list[dict[str, Any]]:
-    ids = _louvre_search_ids(q, min(limit * LOUVRE_OVERFETCH, 12))
-    if not ids:
+    count = min(limit * LOUVRE_OVERFETCH, 12)
+    items: list[dict[str, Any]] = []
+    arks = _louvre_search_ids(q, count)
+    source = "site do Louvre"
+    if arks is None:  # o site bloqueou: acha as obras pelo Wikidata
+        items = _louvre_wikidata_items(q, count)
+        arks = [item["ark"] for item in items]
+        source = "Wikidata"
+    if not arks:
         return []
+
+    # Os detalhes vêm do JSON oficial do Louvre (foto e crédito do museu).
     # Poucos pedidos ao mesmo tempo: o site não foi feito para ser consultado como API.
-    with ThreadPoolExecutor(max_workers=min(len(ids), 4)) as pool:
-        details = list(pool.map(_louvre_object, ids))
+    with ThreadPoolExecutor(max_workers=min(len(arks), 4)) as pool:
+        details = list(pool.map(_louvre_object, arks))
+
+    # Obras achadas pelo Wikidata cujo JSON do Louvre falhou: monta com os dados do Wikidata.
+    missing = [i for i, art in enumerate(details) if art is None and i < len(items)]
+    if missing:
+        creators = [c.get("id") for i in missing for c in _claims(items[i]["entity"], "P170") if isinstance(c, dict)]
+        names = _wikidata_names(creators)
+        for i in missing:
+            details[i] = _wikidata_artwork(items[i], names)
+
     with_image = [art for art in details if art and art["image"]]
-    log.info("[louvre] %d candidatas, %d com imagem", len(ids), len(with_image))
+    log.info("[louvre] %d candidatas (%s), %d com imagem", len(arks), source, len(with_image))
     return with_image[:limit]
 
 

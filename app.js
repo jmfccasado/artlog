@@ -2,11 +2,12 @@
  *
  * Organização (procure pelos títulos):
  *   Básico ........ constantes, cor de destaque, avisos, chamadas à API
- *   Rotas ......... /  /seguindo  /u/usuario  /c/numero
+ *   Rotas ......... /  /seguindo  /pessoas  /u/usuario  /c/numero
  *   Cards ......... card de obra e card de curadoria
  *   Detalhes ...... janela da obra (nota e data quando aberta de uma curadoria)
  *   Salvar ........ o ♡: escolher em quais curadorias a obra entra
  *   Feed .......... Seguindo + curadorias da comunidade
+ *   Pessoas ....... busca de pessoas e sugestões de quem seguir
  *   Perfil ........ meu perfil ou de outra pessoa, seguir, seguidores
  *   Top 5 ......... montar e ordenar
  *   Curadoria ..... página da curadoria, estrelas, ordem, exportar
@@ -193,8 +194,8 @@
     // ======================================================================
     // Rotas: cada tela tem um endereço que dá para compartilhar
     // ======================================================================
-    const VIEWS = ["explore", "feed", "profile", "curation", "missing"];
-    const tabs = { explore: $("tab-explore"), feed: $("tab-feed"), profile: $("tab-profile") };
+    const VIEWS = ["explore", "feed", "people", "profile", "curation", "missing"];
+    const tabs = { explore: $("tab-explore"), feed: $("tab-feed"), people: $("tab-people"), profile: $("tab-profile") };
     let routeSeq = 0;
 
     function showView(name) {
@@ -222,6 +223,12 @@
             document.title = "artlog";
             showView("explore");
             syncFavButtons();
+        } else if (path === "/pessoas") {
+            document.title = "Pessoas · artlog";
+            showView("people");
+            const q = new URLSearchParams(location.search).get("q") || "";
+            peopleInput.value = q;
+            searchPeople(q);  // sempre de novo: o estado de "Seguindo" muda ao entrar ou sair da conta
         } else if (path === "/seguindo") {
             if (!currentUser) {
                 showView("explore");
@@ -589,19 +596,137 @@
             [feed, discover] = await Promise.all([api("GET", "/feed"), api("GET", "/curations/discover")]);
         } catch (err) {
             if (seq !== routeSeq) return;
-            $("feed-empty").textContent = err.message;
+            $("feed-empty-text").textContent = err.message;
+            $("feed-find-people").hidden = true;
             $("feed-empty").hidden = false;
             return;
         }
         if (seq !== routeSeq) return;
         $("feed-list").replaceChildren(...feed.curations.map((c) => curationCard(c, { showOwner: true })));
         $("feed-empty").hidden = feed.curations.length > 0;
-        $("feed-empty").textContent = feed.following === 0
-            ? "Você ainda não segue ninguém. Veja as curadorias da comunidade abaixo e siga quem tem um olhar parecido com o seu."
+        $("feed-empty-text").textContent = feed.following === 0
+            ? "Você ainda não segue ninguém. Procure pessoas pelo nome, ou veja as curadorias da comunidade abaixo."
             : "Quem você segue ainda não publicou curadorias com obras.";
+        $("feed-find-people").hidden = feed.following !== 0;
         $("discover-list").replaceChildren(...discover.curations.map((c) => curationCard(c, { showOwner: true })));
         $("discover-empty").hidden = discover.curations.length > 0;
     }
+
+    // ======================================================================
+    // Pessoas: busca pelo nome ou @ e sugestões de quem seguir
+    // ======================================================================
+    const peopleInput = $("people-input");
+    const peopleList = $("people-results");
+    const peopleStatus = $("people-status");
+    const peopleHeading = $("people-heading");
+    let peopleSeq = 0;
+    let peopleTimer = null;
+
+    // Botão Seguir que funciona em qualquer lista (busca, sugestões...).
+    function followButton(person, onChange) {
+        const button = el("button", "btn-follow small");
+        button.type = "button";
+        const paint = () => {
+            button.textContent = person.is_following ? "Seguindo" : "Seguir";
+            button.setAttribute("aria-pressed", String(person.is_following));
+            button.setAttribute("aria-label", `${person.is_following ? "Deixar de seguir" : "Seguir"} ${displayName(person)}`);
+            button.classList.toggle("is-following", person.is_following);
+        };
+        paint();
+        button.addEventListener("click", async () => {
+            if (!currentUser) {
+                openAuth("register", `Crie uma conta (ou entre) para seguir ${displayName(person)}.`);
+                return;
+            }
+            const was = person.is_following;
+            button.disabled = true;
+            try {
+                const counts = await api(was ? "DELETE" : "POST", `/users/${person.username}/follow`);
+                person.is_following = counts.is_following;
+                person.followers = counts.followers;
+                paint();
+                if (onChange) onChange(person);
+                toast(was ? `Você deixou de seguir ${displayName(person)}.` : `Agora você segue ${displayName(person)}.`);
+            } catch (err) {
+                toast(err.message);
+            } finally {
+                button.disabled = false;
+            }
+        });
+        return button;
+    }
+
+    function personRow(person) {
+        const li = el("li", "person-row");
+        const link = el("a", "person person-main");
+        link.href = `/u/${person.username}`;
+        link.dataset.link = "";
+        const avatar = el("span", "avatar avatar-md");
+        avatar.setAttribute("aria-hidden", "true");
+        paintAvatar(avatar, person);
+        const text = el("span", "person-text");
+        text.append(el("strong", "", displayName(person)), el("span", "", `@${person.username}`));
+        const meta = el("span", "person-meta");
+        const updateMeta = () => {
+            meta.textContent = `${plural(person.public_curations, "curadoria", "curadorias")} · ${plural(person.followers, "seguidor", "seguidores")}`;
+        };
+        updateMeta();
+        text.append(meta);
+        if (person.bio) {
+            const bio = person.bio.replace(/\s+/g, " ");
+            text.append(el("span", "person-bio", bio.length > 140 ? bio.slice(0, 140) + "…" : bio));
+        }
+        link.append(avatar, text);
+        li.append(link);
+        if (person.is_me) li.append(el("span", "badge", "Você"));
+        else li.append(followButton(person, updateMeta));
+        return li;
+    }
+
+    async function searchPeople(query) {
+        const seq = ++peopleSeq;
+        const q = query.trim();
+        peopleStatus.textContent = q.replace(/^@/, "").length >= 2 ? "Buscando…" : "";
+        let data;
+        try {
+            data = await api("GET", `/users?${new URLSearchParams({ q })}`);
+        } catch (err) {
+            if (seq !== peopleSeq) return;
+            peopleStatus.textContent = err.message;
+            return;
+        }
+        if (seq !== peopleSeq) return;  // chegou uma busca mais nova
+        peopleList.replaceChildren(...data.users.map(personRow));
+        if (data.mode === "suggestions") {
+            peopleHeading.textContent = "Sugestões para seguir";
+            peopleHeading.hidden = data.users.length === 0;
+            peopleStatus.textContent = data.users.length
+                ? "Pessoas com curadorias públicas, das mais seguidas para as menos."
+                : "Ainda não há sugestões. Quando mais pessoas publicarem curadorias, elas aparecem aqui.";
+        } else {
+            peopleHeading.hidden = true;
+            peopleStatus.textContent = data.users.length
+                ? `${plural(data.users.length, "pessoa", "pessoas")} para “${q}”${data.users.length === 30 ? " (mostrando as 30 primeiras)" : ""}:`
+                : `Ninguém encontrado para “${q}”. Confira a grafia ou tente só o primeiro nome.`;
+        }
+    }
+
+    // Busca enquanto digita (espera uma pausa de 300 ms) e guarda o termo no endereço.
+    peopleInput.addEventListener("input", () => {
+        clearTimeout(peopleTimer);
+        peopleTimer = setTimeout(() => {
+            const q = peopleInput.value.trim();
+            history.replaceState({}, "", q ? `/pessoas?${new URLSearchParams({ q })}` : "/pessoas");
+            searchPeople(q);
+        }, 300);
+    });
+    $("people-form").addEventListener("submit", (event) => {
+        event.preventDefault();
+        clearTimeout(peopleTimer);
+        const q = peopleInput.value.trim();
+        history.replaceState({}, "", q ? `/pessoas?${new URLSearchParams({ q })}` : "/pessoas");
+        searchPeople(q);
+    });
 
     // ======================================================================
     // Perfil (o meu ou de outra pessoa)

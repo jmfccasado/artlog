@@ -17,6 +17,7 @@ import os
 import re
 import sqlite3
 import threading
+import unicodedata
 from contextlib import closing
 from pathlib import Path
 from typing import Any, Iterable, Iterator
@@ -56,7 +57,8 @@ CREATE TABLE IF NOT EXISTS users (
     created_at     {bigint} NOT NULL,
     display_name   TEXT NOT NULL DEFAULT '',
     bio            TEXT NOT NULL DEFAULT '',
-    avatar_version {bigint}
+    avatar_version {bigint},
+    name_key       TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -136,7 +138,28 @@ USER_COLUMNS = {
     "display_name": "TEXT NOT NULL DEFAULT ''",
     "bio": "TEXT NOT NULL DEFAULT ''",
     "avatar_version": "{bigint}",
+    # Nome + @usuário sem acentos e em minúsculas, para a busca de pessoas
+    # ("joao" encontra "João"). É feito em Python para funcionar igual nos dois bancos.
+    "name_key": "TEXT NOT NULL DEFAULT ''",
 }
+
+
+def search_key(*parts: str | None) -> str:
+    """'João Burgos', 'joao_b' -> 'joao burgos joao_b' (sem acento, minúsculo, espaços simples)."""
+    text = " ".join(part for part in parts if part)
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    return " ".join(text.casefold().split())
+
+
+def _fill_name_keys(conn: Any, placeholder: str) -> None:
+    """Contas criadas antes da busca de pessoas: calcula o name_key que falta."""
+    rows = conn.execute("SELECT id, username, display_name FROM users WHERE name_key = ''").fetchall()
+    for row in rows:
+        conn.execute(
+            f"UPDATE users SET name_key = {placeholder} WHERE id = {placeholder}",
+            (search_key(row["display_name"], row["username"]), row["id"]),
+        )
 
 
 def _statements(kind: str) -> list[str]:
@@ -257,6 +280,7 @@ def init_db() -> None:
                 conn.execute(stmt)
             for name, definition in USER_COLUMNS.items():
                 conn.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {name} {definition.format(**TYPES['postgres'])}")
+            _fill_name_keys(conn, "%s")
         return
 
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -270,6 +294,7 @@ def init_db() -> None:
                     conn.execute(f"ALTER TABLE users ADD COLUMN {name} {definition.format(**TYPES['sqlite'])}")
         for stmt in _statements("sqlite"):
             conn.execute(stmt)
+        _fill_name_keys(conn, "?")
         conn.commit()
 
 

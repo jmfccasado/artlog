@@ -87,6 +87,7 @@
         <nav class="view-switch" aria-label="Seções">
             <a href="/" id="tab-explore" data-link>Explorar</a>
             <a href="/seguindo" id="tab-feed" data-link hidden>Seguindo</a>
+            <a href="/pessoas" id="tab-people" data-link>Pessoas</a>
             <a href="/" id="tab-profile" data-link hidden>Perfil</a>
         </nav>
 
@@ -146,7 +147,10 @@
                 <p>Curadorias novas e atualizadas de quem você segue.</p>
             </header>
             <div id="feed-list" class="cur-grid"></div>
-            <p id="feed-empty" class="empty-state" hidden></p>
+            <div id="feed-empty" class="empty-state" hidden>
+                <p id="feed-empty-text"></p>
+                <a id="feed-find-people" href="/pessoas" class="btn-outline" data-link hidden>Encontrar pessoas</a>
+            </div>
 
             <section class="feed-discover" aria-labelledby="discover-title">
                 <div class="section-head">
@@ -156,6 +160,23 @@
                 <div id="discover-list" class="cur-grid"></div>
                 <p id="discover-empty" class="empty-state" hidden>Ainda não há curadorias públicas de outras pessoas.</p>
             </section>
+        </section>
+
+        <!-- PESSOAS (BUSCA) -->
+        <section id="view-people" class="view" hidden aria-labelledby="people-page-title">
+            <header class="page-head">
+                <h1 id="people-page-title">Pessoas</h1>
+                <p>Encontre quem tem um olhar parecido com o seu. Busque pelo nome ou pelo @.</p>
+            </header>
+            <form id="people-form" class="search-section people-search" role="search">
+                <input type="search" id="people-input" name="q" maxlength="60" autocomplete="off"
+                       autocapitalize="none" spellcheck="false"
+                       placeholder="Nome ou @usuário" aria-label="Buscar pessoas pelo nome ou @usuário">
+                <button type="submit">Buscar</button>
+            </form>
+            <h2 id="people-heading" class="people-heading" hidden></h2>
+            <p id="people-status" class="people-status" role="status" aria-live="polite"></p>
+            <ul id="people-results" class="people-results" aria-labelledby="people-heading"></ul>
         </section>
 
         <!-- PERFIL (MEU OU DE OUTRA PESSOA) -->

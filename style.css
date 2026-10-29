@@ -645,5 +645,38 @@ body {
     .cur-link:hover .cur-cover img { transform: none; }
 }
 
+/* ==========================================================================
+   PESSOAS (BUSCA)
+   ========================================================================== */
+.people-search { margin-bottom: 2rem; }
+.people-search:focus-within { outline: 3px solid var(--brand-accent); outline-offset: 3px; }
+.people-search button:hover, .people-search button:focus-visible { background-color: var(--brand-accent); color: var(--on-accent, #fff); }
+.people-heading {
+    display: inline-block; margin-bottom: 0.5rem; padding-bottom: 0.3rem; border-bottom: 3px solid var(--brand-accent);
+    font-size: 0.9rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+}
+.people-status { min-height: 1.5em; margin-bottom: 1rem; font-size: 0.95rem; color: var(--text-muted); }
+.people-results { list-style: none; border-top: 2px solid var(--text-main); }
+.person-row {
+    display: flex; align-items: center; gap: 1rem; padding: 0.4rem 0;
+    border-bottom: 1px solid var(--border-light);
+}
+.person-main { flex: 1; min-width: 0; align-items: flex-start; padding: 0.75rem 0.5rem; }
+.person-main .avatar { margin-top: 0.1rem; }
+.person-meta { margin-top: 0.3rem; font-size: 0.8rem !important; font-weight: 600; color: var(--text-main) !important; }
+.person-bio { margin-top: 0.3rem; font-size: 0.85rem !important; line-height: 1.4; overflow-wrap: anywhere; }
+.person-row .badge { margin-right: 0.5rem; }
+.btn-follow.small { min-width: 7.5rem; padding: 0.5rem 0.9rem; font-size: 0.8rem; flex: none; }
+.btn-follow.small.is-following:hover::after { content: ""; }
+
+#feed-empty .btn-outline { display: inline-block; margin-top: 1.25rem; text-decoration: none; }
+
+@media (max-width: 640px) {
+    .person-row { flex-wrap: wrap; gap: 0 0.75rem; padding-bottom: 0.9rem; }
+    .person-main { flex-basis: 100%; padding-bottom: 0.5rem; }
+    .person-row .btn-follow.small, .person-row .badge { margin-left: calc(0.5rem + 2.6rem + 0.9rem); }
+    .view-switch { gap: 1rem; }
+}
+
 /* Garante que o atributo hidden sempre esconde, mesmo com display definido em outra regra. */
 [hidden] { display: none !important; }

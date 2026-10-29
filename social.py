@@ -15,6 +15,7 @@ Curadorias (listas de obras com nome; públicas ou privadas):
     DELETE /curations/{id}/rating        tira a nota
 
 Pessoas:
+    GET    /users?q=...                  busca pelo nome ou @ (sem q: sugestões de quem seguir)
     GET    /users/{username}             perfil público: dados, contagens, Top 5 e curadorias
     POST   /users/{username}/follow      seguir
     DELETE /users/{username}/follow      deixar de seguir
@@ -36,7 +37,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from auth import current_user, get_db, optional_user, profile_card
-from db import Database, Row
+from db import Database, Row, search_key
 from user_profile import ArtworkIn, clean_artwork
 
 router = APIRouter(tags=["curadorias e pessoas"])
@@ -431,6 +432,69 @@ def unrate(
 # ---------------------------------------------------------------------------
 # Pessoas
 # ---------------------------------------------------------------------------
+def _escape_like(text: str) -> str:
+    """Num LIKE, % e _ são curingas. O _ é comum em @usuário, então vira caractere comum."""
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+PEOPLE_SQL = """
+SELECT u.*,
+       (SELECT COUNT(*) FROM follows f WHERE f.followee_id = u.id)                   AS followers,
+       (SELECT COUNT(*) FROM curations c WHERE c.user_id = u.id AND c.is_public = 1) AS public_curations,
+       EXISTS (SELECT 1 FROM follows f WHERE f.follower_id = ? AND f.followee_id = u.id) AS is_following
+FROM users u
+"""
+
+
+@router.get("/users")
+def search_people(
+    q: str = Query("", max_length=60),
+    viewer: dict | None = Depends(optional_user),
+    db: Database = Depends(get_db),
+) -> dict[str, Any]:
+    """Busca pelo nome ou @, sem diferenciar acentos e maiúsculas ("joao" acha "João").
+
+    Sem termo (ou com menos de 2 letras), devolve sugestões: pessoas com curadorias
+    públicas, das mais seguidas para as menos, sem você e sem quem você já segue.
+    """
+    me = viewer["id"] if viewer else -1
+    tokens = [t.lstrip("@") for t in search_key(q).split()][:5]
+    tokens = [t for t in tokens if t]
+
+    if sum(len(t) for t in tokens) >= 2:
+        like = " AND ".join("u.name_key LIKE ? ESCAPE '\\'" for _ in tokens)
+        first = tokens[0]
+        rows = db.execute(
+            f"""{PEOPLE_SQL} WHERE {like}
+                ORDER BY (u.username = ?) DESC, (u.username LIKE ? ESCAPE '\\') DESC, followers DESC, u.username
+                LIMIT 30""",
+            (me, *[f"%{_escape_like(t)}%" for t in tokens], first, f"{_escape_like(first)}%"),
+        ).fetchall()
+        mode = "search"
+    else:
+        rows = db.execute(
+            f"""{PEOPLE_SQL} WHERE u.id != ?
+                  AND NOT EXISTS (SELECT 1 FROM follows f WHERE f.follower_id = ? AND f.followee_id = u.id)
+                  AND EXISTS (SELECT 1 FROM curations c WHERE c.user_id = u.id AND c.is_public = 1)
+                ORDER BY followers DESC, public_curations DESC, u.created_at DESC
+                LIMIT 12""",
+            (me, me, me),
+        ).fetchall()
+        mode = "suggestions"
+
+    people = [
+        {
+            **profile_card(row),
+            "followers": row["followers"],
+            "public_curations": row["public_curations"],
+            "is_following": bool(row["is_following"]),
+            "is_me": row["id"] == me,
+        }
+        for row in rows
+    ]
+    return {"mode": mode, "users": people}
+
+
 def _user_by_name(db: Database, username: str) -> Row:
     row = db.execute("SELECT * FROM users WHERE username = ?", (username.lstrip("@").lower(),)).fetchone()
     if row is None:

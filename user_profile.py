@@ -19,7 +19,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 
-from db import Database, IntegrityError, Row
+from db import Database, IntegrityError, Row, search_key
 from auth import (
     EMAIL_RE,
     PASSWORD_MAX,
@@ -115,6 +115,12 @@ def update_profile(
             if db.execute("SELECT 1 FROM users WHERE email = ? AND id != ?", (email, user["id"])).fetchone():
                 raise HTTPException(409, "Já existe uma conta com esse e-mail.")
             changes["email"] = email
+
+    if "display_name" in changes or "username" in changes:
+        # Mantém o nome usado pela busca de pessoas igual ao que aparece no perfil.
+        changes["name_key"] = search_key(
+            changes.get("display_name", user["display_name"]), changes.get("username", user["username"])
+        )
 
     if changes:
         # Os nomes das colunas vêm da lista fixa acima, nunca do usuário.

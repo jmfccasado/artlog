@@ -31,7 +31,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 
-from db import Database, IntegrityError, Row, get_db, init_db
+from db import Database, IntegrityError, Row, get_db, init_db, search_key
 
 SESSION_COOKIE = "artlog_session"
 SESSION_DAYS = 30
@@ -242,8 +242,8 @@ def register(data: RegisterIn, response: Response, db: Database = Depends(get_db
     try:
         with db:
             new_id = db.execute(
-                "INSERT INTO users (username, email, password_hash, created_at) VALUES (?, ?, ?, ?) RETURNING id",
-                (username, email, hash_password(data.password), int(time.time())),
+                "INSERT INTO users (username, email, password_hash, created_at, name_key) VALUES (?, ?, ?, ?, ?) RETURNING id",
+                (username, email, hash_password(data.password), int(time.time()), search_key(username)),
             ).fetchone()["id"]
     except IntegrityError:  # duas pessoas criando a mesma conta ao mesmo tempo
         raise HTTPException(409, "Esse nome de usuário ou e-mail acabou de ser usado. Tente outro.") from None
